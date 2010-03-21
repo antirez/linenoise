@@ -4,7 +4,7 @@ A minimal, zero-config, readline replacement.
 
 ## Can a line editing library be 20k lines of code?
 
-Line editing with some support for history is a really important feature for command line utilities. Intead to retype everything again and again It's just much better to hit the up arrow and edit on syntax errors, or in order to try a slightly different command. But apparently code dealing with terminals is some sort of Black Magic: readline is 30k lines of code, libedit 20k. Is it reasonable to link small utilities to huge libraries just to get a minimal support for line editing?
+Line editing with some support for history is a really important feature for command line utilities. Instead of retyping almost the same stuff again and again it's just much better to hit the up arrow and edit on syntax errors, or in order to try a slightly different command. But apparently code dealing with terminals is some sort of Black Magic: readline is 30k lines of code, libedit 20k. Is it reasonable to link small utilities to huge libraries just to get a minimal support for line editing?
 
 It's a matter of coding philosophy. For me shipping zero-configuration software is very important. Software that just works, uncompressing the tar.gz and typing make. Also not enabling line editing if readline is not present in the system is lame: as it is not a blocking requirements many configuration script will just drop the support if you don't have the lib installed. The result is a pollution of binaries without line editing support.
 
