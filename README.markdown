@@ -1,6 +1,6 @@
 # Linenoise
 
-A minimal, zero-config, readline replacement.
+A minimal, zero-config, BSD licensed, readline replacement.
 
 ## Can a line editing library be 20k lines of code?
 

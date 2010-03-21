@@ -308,7 +308,7 @@ int linenoiseHistoryAdd(char *line) {
     line = strdup(line);
     if (!line) return 0;
     if (history_len == history_max_len) {
-        memmove(history,history+sizeof(char*),sizeof(char*)*history_max_len-1);
+        memmove(history,history+1,sizeof(char*)*(history_max_len-1));
         history_len--;
     }
     history[history_len] = line;
@@ -326,7 +326,7 @@ int linenoiseHistorySetMaxLen(int len) {
         new = malloc(sizeof(char*)*len);
         if (new == NULL) return 0;
         if (len < tocopy) tocopy = len;
-        memcpy(new,history-sizeof(char*)*tocopy, sizeof(char*)*tocopy);
+        memcpy(new,history+(history_max_len-tocopy), sizeof(char*)*tocopy);
         free(history);
         history = new;
     }
