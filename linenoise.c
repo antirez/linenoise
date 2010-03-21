@@ -259,6 +259,11 @@ static int linenoisePrompt(int fd, char *buf, size_t buflen, char *prompt) {
                 }
             }
             break;
+        case 11: /* Ctrl+K, delete from current to end of line. */
+            buf[pos] = '\0';
+            len = pos;
+            refreshLine(fd,prompt,buf,len,pos,cols);
+            break;
         }
     }
     return len;
