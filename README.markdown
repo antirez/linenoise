@@ -18,6 +18,18 @@ Since it's so young I guess there are a few bugs, or the lib may not compile or 
 
 The library is currently less than 400 lines of code. In order to use it in your project just look at the *example.c* file in the source distribution, it is trivial. Linenoise is BSD code, so you can use both in free software and commercial software.
 
-Please fork it and add something interesting and send me a pull request.
+## Tested in...
+
+ * Linux text only console ($TERM = linux)
+ * Linux KDE terminal application ($TERM = xterm)
+ * Linux xterm ($TERM = xterm)
+ * Mac OS X iTerm ($TERM = xterm)
+ * Mac OS X default Terminal.app ($TERM = xterm)
+
+Please test it everywhere you can and report back!
+
+## Let's push this forward!
+
+Please fork it and add something interesting and send me a pull request. What's especially interesting are fixes, new key bindings, completion.
 
 Send feedbacks to antirez at gmail
