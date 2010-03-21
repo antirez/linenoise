@@ -259,14 +259,22 @@ static int linenoisePrompt(int fd, char *buf, size_t buflen, char *prompt) {
                 }
             }
             break;
-        case 21: /* Ctrl+U, delete the whole line. */
+        case 21: /* Ctrl+u, delete the whole line. */
             buf[0] = '\0';
             pos = len = 0;
             refreshLine(fd,prompt,buf,len,pos,cols);
             break;
-        case 11: /* Ctrl+K, delete from current to end of line. */
+        case 11: /* Ctrl+k, delete from current to end of line. */
             buf[pos] = '\0';
             len = pos;
+            refreshLine(fd,prompt,buf,len,pos,cols);
+            break;
+        case 1: /* Ctrl+a, go to the start of the line */
+            pos = 0;
+            refreshLine(fd,prompt,buf,len,pos,cols);
+            break;
+        case 5: /* ctrl+e, go to the end of the line */
+            pos = len;
             refreshLine(fd,prompt,buf,len,pos,cols);
             break;
         }
