@@ -31,7 +31,9 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  *
- * Reference: http://www.3waylabs.com/nw/WWW/products/wizcon/vt220.html
+ * References:
+ * - http://invisible-island.net/xterm/ctlseqs/ctlseqs.html
+ * - http://www.3waylabs.com/nw/WWW/products/wizcon/vt220.html
  *
  * Works with:
  *
