@@ -30,6 +30,7 @@ The library is currently less than 400 lines of code. In order to use it in your
  * Linux xterm ($TERM = xterm)
  * Mac OS X iTerm ($TERM = xterm)
  * Mac OS X default Terminal.app ($TERM = xterm)
+ * OpenBSD 4.5 through an OSX Terminal.app ($TERM = screen)
 
 Please test it everywhere you can and report back!
 
