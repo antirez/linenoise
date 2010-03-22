@@ -225,6 +225,15 @@ static int linenoisePrompt(int fd, char *buf, size_t buflen, const char *prompt)
                 refreshLine(fd,prompt,buf,len,pos,cols);
             }
             break;
+        case 20:    /* ctrl-t */
+            if (pos > 0 && pos < len) {
+                int aux = buf[pos-1];
+                buf[pos-1] = buf[pos];
+                buf[pos] = aux;
+                if (pos != len-1) pos++;
+                refreshLine(fd,prompt,buf,len,pos,cols);
+            }
+            break;
         case 2:     /* ctrl-b */
             goto left_arrow;
         case 6:     /* ctrl-f */
