@@ -209,14 +209,14 @@ static int linenoisePrompt(int fd, char *buf, size_t buflen, const char *prompt)
         case 13:    /* enter */
             history_len--;
             return len;
-        case 4:     /* ctrl+d */
+        case 4:     /* ctrl-d */
             history_len--;
             return (len == 0) ? -1 : (int)len;
-        case 3:     /* ctrl+c */
+        case 3:     /* ctrl-c */
             errno = EAGAIN;
             return -1;
         case 127:   /* backspace */
-        case 8:     /* ctrl+h */
+        case 8:     /* ctrl-h */
             if (pos > 0 && len > 0) {
                 memmove(buf+pos-1,buf+pos,len-pos);
                 pos--;
@@ -225,21 +225,35 @@ static int linenoisePrompt(int fd, char *buf, size_t buflen, const char *prompt)
                 refreshLine(fd,prompt,buf,len,pos,cols);
             }
             break;
+        case 2:     /* ctrl-b */
+            goto left_arrow;
+        case 6:     /* ctrl-f */
+            goto right_arrow;
+        case 16:    /* ctrl-p */
+            seq[1] = 65;
+            goto up_down_arrow;
+        case 14:    /* ctrl-n */
+            seq[1] = 66;
+            goto up_down_arrow;
+            break;
         case 27:    /* escape sequence */
             if (read(fd,seq,2) == -1) break;
             if (seq[0] == 91 && seq[1] == 68) {
+left_arrow:
                 /* left arrow */
                 if (pos > 0) {
                     pos--;
                     refreshLine(fd,prompt,buf,len,pos,cols);
                 }
             } else if (seq[0] == 91 && seq[1] == 67) {
+right_arrow:
                 /* right arrow */
                 if (pos != len) {
                     pos++;
                     refreshLine(fd,prompt,buf,len,pos,cols);
                 }
             } else if (seq[0] == 91 && (seq[1] == 65 || seq[1] == 66)) {
+up_down_arrow:
                 /* up and down arrow: history */
                 if (history_len > 1) {
                     /* Update the current history entry before to
@@ -248,10 +262,13 @@ static int linenoisePrompt(int fd, char *buf, size_t buflen, const char *prompt)
                     history[history_len-1-history_index] = strdup(buf);
                     /* Show the new entry */
                     history_index += (seq[1] == 65) ? 1 : -1;
-                    if (history_index < 0)
-                        history_index = history_len-1;
-                    else if (history_index >= history_len)
+                    if (history_index < 0) {
                         history_index = 0;
+                        break;
+                    } else if (history_index >= history_len) {
+                        history_index = history_len-1;
+                        break;
+                    }
                     strncpy(buf,history[history_len-1-history_index],buflen);
                     buf[buflen] = '\0';
                     len = pos = strlen(buf);
