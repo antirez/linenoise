@@ -1,6 +1,10 @@
 /* linenoise.c -- guerrilla line editing library against the idea that a
  * line editing lib needs to be 20,000 lines of C code.
  *
+ * You can find the latest source code at:
+ * 
+ *   http://github.com/antirez/linenoise
+ *
  * Does a number of crazy assumptions that happen to be true in 99.9999% of
  * the 2010 UNIX computers around.
  *
@@ -35,21 +39,29 @@
  * - http://invisible-island.net/xterm/ctlseqs/ctlseqs.html
  * - http://www.3waylabs.com/nw/WWW/products/wizcon/vt220.html
  *
- * Works with:
- *
- * Linux console (TERM = Linux)
- * Linux KDE terminal application (TERM = xterm)
- * Linux xterm (TERM = xterm)
- * Mac OS X iTerm (TERM = xterm)
- *
- * Broken with:
- *
- * Mac OS X default Terminal application (TERM = xterm) 
- *
- * TODO
- *
+ * Todo list:
  * - Switch to gets() if $TERM is something we can't support.
  * - Completion?
+ *
+ * List of escape sequences used by this program, we do everything just
+ * with three sequences. In order to be so cheap we may have some
+ * flickering effect with some slow terminal, but the lesser sequences
+ * the more compatible.
+ *
+ * CHA (Cursor Horizontal Absolute)
+ *    Sequence: ESC [ n G
+ *    Effect: moves cursor to column n
+ *
+ * EL (Erase Line)
+ *    Sequence: ESC [ n K
+ *    Effect: if n is 0 or missing, clear from cursor to end of line
+ *    Effect: if n is 1, clear from beginning of line to cursor
+ *    Effect: if n is 2, clear entire line
+ *
+ * CUF (CUrsor Forward)
+ *    Sequence: ESC [ n C
+ *    Effect: moves cursor forward of n chars
+ * 
  */
 
 #include <termios.h>
