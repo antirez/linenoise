@@ -207,6 +207,7 @@ static int linenoisePrompt(int fd, char *buf, size_t buflen, char *prompt) {
             errno = EAGAIN;
             return -1;
         case 127:   /* backspace */
+        case 8:     /* ctrl+h */
             if (pos > 0 && len > 0) {
                 memmove(buf+pos-1,buf+pos,len-pos);
                 pos--;
