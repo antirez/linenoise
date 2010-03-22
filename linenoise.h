@@ -34,7 +34,7 @@
 #ifndef __LINENOISE_H
 #define __LINENOISE_H
 
-int linenoise(char *buf, size_t buflen, char *prompt);
+char *linenoise(const char *prompt);
 int linenoiseHistoryAdd(char *line);
 int linenoiseHistorySetMaxLen(int len);
 

@@ -3,17 +3,14 @@
 #include "linenoise.h"
 
 int main(void) {
-    char buf[1024];
-    int retval;
+    char *line;
 
-    while(1) {
-        retval = linenoise(buf,1024,"hello> ");
-        if (retval > 0) {
-            printf("echo: '%s'\n", buf);
-            linenoiseHistoryAdd(buf);
-        } else if (retval == -1) {
-            exit(1);
+    while((line = linenoise("hello> ")) != NULL) {
+        if (line[0] != '\0') {
+            printf("echo: '%s'\n", line);
+            linenoiseHistoryAdd(line);
         }
+        free(line);
     }
     return 0;
 }

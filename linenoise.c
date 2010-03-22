@@ -80,6 +80,8 @@
 #include <sys/ioctl.h>
 #include <unistd.h>
 
+#define LINENOISE_MAX_LINE 4096
+
 static struct termios orig_termios; /* in order to restore at exit */
 static int rawmode = 0; /* for atexit() function to check if restore is needed*/
 static int atexit_registered = 0; /* register atexit just 1 time */
@@ -154,7 +156,7 @@ static int getColumns(void) {
     return ws.ws_col;
 }
 
-static void refreshLine(int fd, char *prompt, char *buf, size_t len, size_t pos, size_t cols) {
+static void refreshLine(int fd, const char *prompt, char *buf, size_t len, size_t pos, size_t cols) {
     char seq[64];
     size_t plen = strlen(prompt);
     
@@ -181,7 +183,7 @@ static void refreshLine(int fd, char *prompt, char *buf, size_t len, size_t pos,
     if (write(fd,seq,strlen(seq)) == -1) return;
 }
 
-static int linenoisePrompt(int fd, char *buf, size_t buflen, char *prompt) {
+static int linenoisePrompt(int fd, char *buf, size_t buflen, const char *prompt) {
     size_t plen = strlen(prompt);
     size_t pos = 0;
     size_t len = 0;
@@ -205,9 +207,11 @@ static int linenoisePrompt(int fd, char *buf, size_t buflen, char *prompt) {
         if (nread <= 0) return len;
         switch(c) {
         case 13:    /* enter */
-        case 4:     /* ctrl+d */
             history_len--;
             return len;
+        case 4:     /* ctrl+d */
+            history_len--;
+            return (len == 0) ? -1 : (int)len;
         case 3:     /* ctrl+c */
             errno = EAGAIN;
             return -1;
@@ -302,7 +306,7 @@ static int linenoisePrompt(int fd, char *buf, size_t buflen, char *prompt) {
     return len;
 }
 
-int linenoise(char *buf, size_t buflen, char *prompt) {
+static int linenoiseRaw(char *buf, size_t buflen, const char *prompt) {
     int fd = STDIN_FILENO;
     int count;
 
@@ -315,6 +319,15 @@ int linenoise(char *buf, size_t buflen, char *prompt) {
     disableRawMode(fd);
     printf("\n");
     return count;
+}
+
+char *linenoise(const char *prompt) {
+    char buf[LINENOISE_MAX_LINE];
+    int count;
+
+    count = linenoiseRaw(buf,LINENOISE_MAX_LINE,prompt);
+    if (count == -1) return NULL;
+    return strdup(buf);
 }
 
 /* Using a circular buffer is smarter, but a bit more complex to handle. */
