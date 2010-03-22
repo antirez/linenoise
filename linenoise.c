@@ -41,7 +41,12 @@
  *
  * Todo list:
  * - Switch to gets() if $TERM is something we can't support.
+ * - Filter bogus Ctrl+<char> combinations.
+ * - Win32 support
+ *
+ * Bloat:
  * - Completion?
+ * - History search like Ctrl+r in readline?
  *
  * List of escape sequences used by this program, we do everything just
  * with three sequences. In order to be so cheap we may have some

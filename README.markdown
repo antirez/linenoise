@@ -6,9 +6,9 @@ A minimal, zero-config, BSD licensed, readline replacement.
 
 Line editing with some support for history is a really important feature for command line utilities. Instead of retyping almost the same stuff again and again it's just much better to hit the up arrow and edit on syntax errors, or in order to try a slightly different command. But apparently code dealing with terminals is some sort of Black Magic: readline is 30k lines of code, libedit 20k. Is it reasonable to link small utilities to huge libraries just to get a minimal support for line editing?
 
-So what usually happens is either
+So what usually happens is either:
 
- * Large programs with configure scripts disabling line editing if readline is not present in the system, or not supporting it at all since readline is GPL licensed and libedit (the BSD clone) is not as known and available as readline is (Example: Tclsh).
+ * Large programs with configure scripts disabling line editing if readline is not present in the system, or not supporting it at all since readline is GPL licensed and libedit (the BSD clone) is not as known and available as readline is (Readl world example of this problem: Tclsh).
  * Smaller programs not using a configure script not supporting line editing at all (A problem we had with Redis-cli for instance).
  
 The result is a pollution of binaries without line editing support.
