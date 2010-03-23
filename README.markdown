@@ -23,7 +23,7 @@ Since it's so young I guess there are a few bugs, or the lib may not compile or 
 
 The library is currently less than 400 lines of code. In order to use it in your project just look at the *example.c* file in the source distribution, it is trivial. Linenoise is BSD code, so you can use both in free software and commercial software.
 
-## Tested in...
+## Tested with...
 
  * Linux text only console ($TERM = linux)
  * Linux KDE terminal application ($TERM = xterm)
@@ -31,6 +31,7 @@ The library is currently less than 400 lines of code. In order to use it in your
  * Mac OS X iTerm ($TERM = xterm)
  * Mac OS X default Terminal.app ($TERM = xterm)
  * OpenBSD 4.5 through an OSX Terminal.app ($TERM = screen)
+ * IBM AIX 6.1
 
 Please test it everywhere you can and report back!
 

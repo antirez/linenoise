@@ -90,7 +90,7 @@ static int history_len = 0;
 char **history = NULL;
 
 static void linenoiseAtExit(void);
-int linenoiseHistoryAdd(char *line);
+int linenoiseHistoryAdd(const char *line);
 
 static void freeHistory(void) {
     if (history) {
@@ -357,20 +357,22 @@ char *linenoise(const char *prompt) {
 }
 
 /* Using a circular buffer is smarter, but a bit more complex to handle. */
-int linenoiseHistoryAdd(char *line) {
+int linenoiseHistoryAdd(const char *line) {
+    char *linecopy;
+
     if (history_max_len == 0) return 0;
     if (history == 0) {
         history = malloc(sizeof(char*)*history_max_len);
         if (history == NULL) return 0;
         memset(history,0,(sizeof(char*)*history_max_len));
     }
-    line = strdup(line);
-    if (!line) return 0;
+    linecopy = strdup(line);
+    if (!linecopy) return 0;
     if (history_len == history_max_len) {
         memmove(history,history+1,sizeof(char*)*(history_max_len-1));
         history_len--;
     }
-    history[history_len] = line;
+    history[history_len] = linecopy;
     history_len++;
     return 1;
 }
