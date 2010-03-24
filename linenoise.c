@@ -81,6 +81,7 @@
 #include <unistd.h>
 
 #define LINENOISE_MAX_LINE 4096
+static char *unsupported_term[] = {"dumb","eterm","cons25",NULL};
 
 static struct termios orig_termios; /* in order to restore at exit */
 static int rawmode = 0; /* for atexit() function to check if restore is needed*/
@@ -91,6 +92,16 @@ char **history = NULL;
 
 static void linenoiseAtExit(void);
 int linenoiseHistoryAdd(const char *line);
+
+static int isUnsupportedTerm(void) {
+    char *term = getenv("TERM");
+    int j;
+
+    if (term == NULL) return 0;
+    for (j = 0; unsupported_term[j]; j++)
+        if (!strcasecmp(term,unsupported_term[j])) return 1;
+    return 0;
+}
 
 static void freeHistory(void) {
     if (history) {
@@ -351,9 +362,23 @@ char *linenoise(const char *prompt) {
     char buf[LINENOISE_MAX_LINE];
     int count;
 
-    count = linenoiseRaw(buf,LINENOISE_MAX_LINE,prompt);
-    if (count == -1) return NULL;
-    return strdup(buf);
+    if (isUnsupportedTerm()) {
+        size_t len;
+
+        printf("%s",prompt);
+        fflush(stdout);
+        if (fgets(buf,LINENOISE_MAX_LINE,stdin) == NULL) return NULL;
+        len = strlen(buf);
+        while(len && (buf[len-1] == '\n' || buf[len-1] == '\r')) {
+            len--;
+            buf[len] = '\0';
+        }
+        return strdup(buf);
+    } else {
+        count = linenoiseRaw(buf,LINENOISE_MAX_LINE,prompt);
+        if (count == -1) return NULL;
+        return strdup(buf);
+    }
 }
 
 /* Using a circular buffer is smarter, but a bit more complex to handle. */
