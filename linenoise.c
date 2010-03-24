@@ -81,7 +81,7 @@
 #include <unistd.h>
 
 #define LINENOISE_MAX_LINE 4096
-static char *unsupported_term[] = {"dumb","eterm","cons25",NULL};
+static char *unsupported_term[] = {"dumb","cons25",NULL};
 
 static struct termios orig_termios; /* in order to restore at exit */
 static int rawmode = 0; /* for atexit() function to check if restore is needed*/
