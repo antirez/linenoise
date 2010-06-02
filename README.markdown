@@ -2,6 +2,8 @@
 
 A minimal, zero-config, BSD licensed, readline replacement.
 
+News: linenoise is now part of [http://android.git.kernel.org/?p=platform/system/core.git;a=tree;f=liblinenoise;h=56450eaed7f783760e5e6a5993ef75cde2e29dea;hb=HEAD Android]!
+
 ## Can a line editing library be 20k lines of code?
 
 Line editing with some support for history is a really important feature for command line utilities. Instead of retyping almost the same stuff again and again it's just much better to hit the up arrow and edit on syntax errors, or in order to try a slightly different command. But apparently code dealing with terminals is some sort of Black Magic: readline is 30k lines of code, libedit 20k. Is it reasonable to link small utilities to huge libraries just to get a minimal support for line editing?
