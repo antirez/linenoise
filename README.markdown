@@ -2,7 +2,7 @@
 
 A minimal, zero-config, BSD licensed, readline replacement.
 
-News: linenoise is now part of [http://android.git.kernel.org/?p=platform/system/core.git;a=tree;f=liblinenoise;h=56450eaed7f783760e5e6a5993ef75cde2e29dea;hb=HEAD Android]!
+News: linenoise is now part of [Android](http://android.git.kernel.org/?p=platform/system/core.git;a=tree;f=liblinenoise;h=56450eaed7f783760e5e6a5993ef75cde2e29dea;hb=HEAD Android)!
 
 ## Can a line editing library be 20k lines of code?
 
