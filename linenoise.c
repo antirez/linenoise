@@ -219,11 +219,10 @@ static int linenoisePrompt(int fd, char *buf, size_t buflen, const char *prompt)
         if (nread <= 0) return len;
         switch(c) {
         case 13:    /* enter */
-            history_len--;
-            return len;
         case 4:     /* ctrl-d */
             history_len--;
-            return (len == 0) ? -1 : (int)len;
+            free(history[history_len]);
+            return (len == 0 && c == 4) ? -1 : (int)len;
         case 3:     /* ctrl-c */
             errno = EAGAIN;
             return -1;
