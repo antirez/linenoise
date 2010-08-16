@@ -79,6 +79,7 @@
 #include <sys/types.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
+#include <ctype.h>
 
 #define LINENOISE_DEFAULT_HISTORY_MAX_LEN 100
 #define LINENOISE_MAX_LINE 4096
@@ -294,7 +295,15 @@ up_down_arrow:
                     len = pos = strlen(buf);
                     refreshLine(fd,prompt,buf,len,pos,cols);
                 }
-            }
+	    } else if (seq[0] == 102 && (seq[1] == 0 || seq[1] == 65)) {
+
+		    /* meta-f */
+		    while (!isspace(buf[pos]) && pos < len)
+			    pos++;
+		    while (isspace(buf[pos]) && pos <= len)
+			    pos++;
+		    refreshLine(fd,prompt,buf,len,pos,cols);
+	    }
             break;
         default:
             if (len < buflen) {
