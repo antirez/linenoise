@@ -328,6 +328,20 @@ up_down_arrow:
                 memmove(buf + startpos, buf + pos, len);
                 pos = startpos;
                 refreshLine(fd,prompt,buf,len,pos,cols);
+            } else if (seq[0] == 127 && (seq[1] == 0 || seq[1] == 65)) {
+                /* meta-backspace */
+                size_t startpos = pos;
+                size_t oldlen = len;
+                if (len == 0 || pos == 0) break;
+                pos--;
+                while (isspace(buf[pos]) && pos > 0)
+                    pos--;
+                while (!isspace(buf[pos-1]) && pos > 0)
+                    pos--;
+                len -= startpos - pos;
+                if (len == oldlen) break;
+                memmove(buf + pos, buf + startpos, oldlen);
+                refreshLine(fd,prompt,buf,len,pos,cols);
             }
             break;
         default:
