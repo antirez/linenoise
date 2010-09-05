@@ -295,26 +295,26 @@ up_down_arrow:
                     len = pos = strlen(buf);
                     refreshLine(fd,prompt,buf,len,pos,cols);
                 }
-	    } else if (seq[0] == 102 && (seq[1] == 0 || seq[1] == 65)) {
-		    /* meta-f */
-		    while (!isspace(buf[pos]) && pos < len)
-			    pos++;
-		    while (isspace(buf[pos]) && pos <= len)
-			    pos++;
-		    refreshLine(fd,prompt,buf,len,pos,cols);
-	    } else if (seq[0] == 98 && (seq[1] == 0 || seq[1] == 65)) {
-		    /* meta-b */
-		    if (pos == 0) break;
-		    pos--;
-		    if (isspace(buf[pos])) {
-			    while (isspace(buf[pos]) && pos > 0)
-				    pos--;
-		    }
-		    while (!isspace(buf[pos-1]) && pos > 0) {
-			    pos--;
-		    }
-		    refreshLine(fd,prompt,buf,len,pos,cols);
-	    }
+            } else if (seq[0] == 102 && (seq[1] == 0 || seq[1] == 65)) {
+                /* meta-f */
+                while (!isspace(buf[pos]) && pos < len)
+                    pos++;
+                while (isspace(buf[pos]) && pos <= len)
+                    pos++;
+                refreshLine(fd,prompt,buf,len,pos,cols);
+            } else if (seq[0] == 98 && (seq[1] == 0 || seq[1] == 65)) {
+                /* meta-b */
+                if (pos == 0) break;
+                pos--;
+                if (isspace(buf[pos])) {
+                    while (isspace(buf[pos]) && pos > 0)
+                        pos--;
+                }
+                while (!isspace(buf[pos-1]) && pos > 0) {
+                    pos--;
+                }
+                refreshLine(fd,prompt,buf,len,pos,cols);
+            }
             break;
         default:
             if (len < buflen) {
