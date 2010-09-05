@@ -314,6 +314,20 @@ up_down_arrow:
                     pos--;
                 }
                 refreshLine(fd,prompt,buf,len,pos,cols);
+            } else if (seq[0] == 100 && (seq[1] == 0 || seq[1] == 100)) {
+                /* meta-d */
+                size_t startpos = pos;
+                size_t oldlen = len;
+                if (len == 0) break;
+                while (isspace(buf[pos]) && pos <= len)
+                    pos++;
+                while (!isspace(buf[pos]) && pos < len)
+                    pos++;
+                len -= pos - startpos;
+                if (len == oldlen) break;
+                memmove(buf + startpos, buf + pos, len);
+                pos = startpos;
+                refreshLine(fd,prompt,buf,len,pos,cols);
             }
             break;
         default:
