@@ -79,6 +79,7 @@
 #include <sys/types.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
+#include <signal.h>
 
 #define LINENOISE_DEFAULT_HISTORY_MAX_LEN 100
 #define LINENOISE_MAX_LINE 4096
@@ -90,6 +91,9 @@ static int atexit_registered = 0; /* register atexit just 1 time */
 static int history_max_len = LINENOISE_DEFAULT_HISTORY_MAX_LEN;
 static int history_len = 0;
 char **history = NULL;
+
+// Max time to wait to capture character data.
+static int timeout = 3;
 
 static void linenoiseAtExit(void);
 int linenoiseHistoryAdd(const char *line);
@@ -215,6 +219,30 @@ static int linenoisePrompt(int fd, char *buf, size_t buflen, const char *prompt)
         int nread;
         char seq[2], seq2[2];
 
+        // Check if a timeout value has been set.
+        if ( timeout != 0 )
+        {
+          // Input Timer Setup
+          struct timeval tv;
+
+          // Initialize the timeout data structure.
+          tv.tv_sec = timeout;
+          tv.tv_usec = 0;
+
+          // Initialize the file descriptor set.
+          fd_set set;
+          FD_ZERO (&set);
+          FD_SET (fd, &set);
+
+          // Wait for a timeout or data.
+          if ( select ( FD_SETSIZE, &set, NULL, NULL, &tv ) == 0 )
+          {
+            // No data arrived, the session timed out.
+            printf("\n------Timeout-------\n");
+            return -1;
+          }
+        }
+    
         nread = read(fd,&c,1);
         if (nread <= 0) return len;
         switch(c) {
@@ -478,4 +506,17 @@ int linenoiseHistoryLoad(char *filename) {
     }
     fclose(fp);
     return 0;
+}
+
+int linenoiseTimeoutSet ( int newTimeout )
+{
+  // Negative timeout?
+  if ( newTimeout < 0 )
+  {
+    return -1;
+  }
+
+  // Set the new timeout
+  timeout = newTimeout;
+  return ( 0 );
 }
