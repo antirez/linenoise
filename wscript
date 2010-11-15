@@ -18,6 +18,7 @@ def build(ctx):
   example.features = ['c', 'cprogram']
   example.target = 'linenoise_example'
   example.source = 'linenoise.c example.c'
+  example.install_path = None
 
   lib = ctx.new_task_gen()
   lib.features = ['c', 'cshlib']
