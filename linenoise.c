@@ -93,7 +93,7 @@ static int history_len = 0;
 char **history = NULL;
 
 // Max time to wait to capture character data.
-static int timeout = 3;
+static int timeout = 0;
 
 static void linenoiseAtExit(void);
 int linenoiseHistoryAdd(const char *line);
