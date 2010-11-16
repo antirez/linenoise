@@ -238,7 +238,6 @@ static int linenoisePrompt(int fd, char *buf, size_t buflen, const char *prompt)
           if ( select ( FD_SETSIZE, &set, NULL, NULL, &tv ) == 0 )
           {
             // No data arrived, the session timed out.
-            printf("\n------Timeout-------\n");
             return -1;
           }
         }
