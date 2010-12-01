@@ -68,6 +68,17 @@
  * CUF (CUrsor Forward)
  *    Sequence: ESC [ n C
  *    Effect: moves cursor forward of n chars
+ *
+ * The following are used to clear the screen: ESC [ H ESC [ 2 J
+ * This is actually composed of two sequences:
+ *
+ * cursorhome
+ *    Sequence: ESC [ H
+ *    Effect: moves the cursor to upper left corner
+ *
+ * ED2 (Clear entire screen)
+ *    Sequence: ESC [ 2 J
+ *    Effect: clear the whole screen
  * 
  */
 
@@ -267,6 +278,10 @@ static int completeLine(int fd, const char *prompt, char *buf, size_t buflen, si
     return c; /* Return last read character */
 }
 
+void linenoiseClearScreen(void) {
+    write(STDIN_FILENO,"\x1b[H\x1b[2J",7);
+}
+
 static int linenoisePrompt(int fd, char *buf, size_t buflen, const char *prompt) {
     size_t plen = strlen(prompt);
     size_t pos = 0;
@@ -434,6 +449,9 @@ up_down_arrow:
             pos = len;
             refreshLine(fd,prompt,buf,len,pos,cols);
             break;
+        case 12: /* ctrl+l, clear screen */
+            linenoiseClearScreen();
+            refreshLine(fd,prompt,buf,len,pos,cols);
         }
     }
     return len;
