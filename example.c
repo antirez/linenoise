@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "linenoise.h"
 
 
@@ -10,8 +11,16 @@ void completion(const char *buf, linenoiseCompletions *lc) {
     }
 }
 
-int main(void) {
+int main(int argc, char **argv) {
     char *line;
+    int i;
+
+    for (i = 1; i < argc; i++)
+        if(!strcmp("-v", argv[i])) {
+            puts("vi mode on");
+            linenoiseViMode(1);
+        }
+
 
     linenoiseSetCompletionCallback(completion);
     linenoiseHistoryLoad("history.txt"); /* Load the history at startup */
