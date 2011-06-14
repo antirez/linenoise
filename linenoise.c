@@ -339,6 +339,22 @@ static int linenoisePrompt(int fd, char *buf, size_t buflen, const char *prompt)
                 refreshLine(fd,prompt,buf,len,pos,cols);
             }
             break;
+        case 23:    /* ctrl-w, delete word */
+            if (pos > 0 && len > 0) {
+              char *space = buf + pos - 1;
+
+              while (space >= buf && (*space) == ' ') space--; // Ignore all spaces before the cursor.
+              while (space >= buf && (*space) != ' ') space--; // Look for the first space before the cursor.
+
+              int delta = buf+pos-space-1;
+
+              len -= delta;
+              memmove(buf-(buf-space)+1, buf+pos, len);
+              pos -= delta;
+              buf[len] = '\0';
+              refreshLine(fd,prompt,buf,len,pos,cols);
+            }
+            break;
         case 4:     /* ctrl-d, remove char at right of cursor */
             if (len > 1 && pos < (len-1)) {
                 memmove(buf+pos,buf+pos+1,len-pos);
