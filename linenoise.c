@@ -293,6 +293,8 @@ static int linenoisePrompt(int fd, char *buf, size_t buflen, const char *prompt)
     size_t len = 0;
     size_t cols = getColumns();
     int history_index = 0;
+    size_t old_pos;
+    size_t diff;
 
     buf[0] = '\0';
     buflen--; /* Make sure there is always space for the nulterm */
@@ -468,6 +470,18 @@ up_down_arrow:
         case 12: /* ctrl+l, clear screen */
             linenoiseClearScreen();
             refreshLine(fd,prompt,buf,len,pos,cols);
+            break;
+        case 23: /* ctrl+w, delete previous word */
+            old_pos = pos;
+            while (pos > 0 && buf[pos-1] == ' ')
+                pos--;
+            while (pos > 0 && buf[pos-1] != ' ')
+                pos--;
+            diff = old_pos - pos;
+            memmove(&buf[pos], &buf[old_pos], len-old_pos+1);
+            len -= diff;
+            refreshLine(fd,prompt,buf,len,pos,cols);
+            break;
         }
     }
     return len;
