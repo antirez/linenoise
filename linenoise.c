@@ -610,3 +610,16 @@ int linenoiseHistoryLoad(char *filename) {
     fclose(fp);
     return 0;
 }
+
+void simpleCompletion(const char *buf, linenoiseCompletions *lc) {
+    int i, len;
+	char * hist_entry;
+    len = strlen(buf);
+    for(i=history_len-1; i>-1; i--){
+		hist_entry = history[i];
+        if(hist_entry!=NULL && strncmp(history[i], buf, len)==0){
+            linenoiseAddCompletion(lc, history[i]);
+            break;
+        }
+    }
+}
