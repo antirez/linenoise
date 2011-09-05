@@ -1,0 +1,8 @@
+linenoise
+linenoiseHistoryAdd
+linenoiseHistorySetMaxLen
+linenoiseHistorySave
+linenoiseHistoryLoad
+linenoiseClearScreen
+linenoiseSetCompletionCallback
+linenoiseAddCompletion
