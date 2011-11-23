@@ -610,3 +610,19 @@ int linenoiseHistoryLoad(char *filename) {
     fclose(fp);
     return 0;
 }
+
+/* simple completion callback that searches backwards through the
+   history and chooses the first entry that starts with the 
+   typed string */
+void simpleCompletion(const char *buf, linenoiseCompletions *lc) {
+    int i, len;
+	char * hist_entry;
+    len = strlen(buf);
+    for(i=history_len-1; i>-1; i--){
+		hist_entry = history[i];
+        if(hist_entry!=NULL && strncmp(history[i], buf, len)==0){
+            linenoiseAddCompletion(lc, history[i]);
+            break;
+        }
+    }
+}

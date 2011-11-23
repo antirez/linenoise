@@ -13,7 +13,7 @@ void completion(const char *buf, linenoiseCompletions *lc) {
 int main(void) {
     char *line;
 
-    linenoiseSetCompletionCallback(completion);
+    linenoiseSetCompletionCallback(simpleCompletion);
     linenoiseHistoryLoad("history.txt"); /* Load the history at startup */
     while((line = linenoise("hello> ")) != NULL) {
         if (line[0] != '\0') {
