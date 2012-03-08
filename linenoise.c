@@ -103,8 +103,6 @@
 static char *unsupported_term[] = {"dumb","cons25",NULL};
 static linenoiseCompletionCallback *completionCallback = NULL;
 
-static struct termios orig_termios; /* in order to restore at exit */
-static int rawmode = 0; /* for atexit() function to check if restore is needed*/
 static int atexit_registered = 0; /* register atexit just 1 time */
 static int history_max_len = LINENOISE_DEFAULT_HISTORY_MAX_LEN;
 static int history_len = 0;
@@ -142,50 +140,9 @@ static void freeHistory(void) {
     }
 }
 
-static int enableRawMode(int fd) {
-    struct termios raw;
-
-    if (!isatty(STDIN_FILENO)) goto fatal;
-    if (!atexit_registered) {
-        atexit(linenoiseAtExit);
-        atexit_registered = 1;
-    }
-    if (tcgetattr(fd,&orig_termios) == -1) goto fatal;
-
-    raw = orig_termios;  /* modify the original mode */
-    /* input modes: no break, no CR to NL, no parity check, no strip char,
-     * no start/stop output control. */
-    raw.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
-    /* output modes - disable post processing */
-    raw.c_oflag &= ~(OPOST);
-    /* control modes - set 8 bit chars */
-    raw.c_cflag |= (CS8);
-    /* local modes - choing off, canonical off, no extended functions,
-     * no signal chars (^Z,^C) */
-    raw.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
-    /* control chars - set return condition: min number of bytes and timer.
-     * We want read to return every single byte, without timeout. */
-    raw.c_cc[VMIN] = 1; raw.c_cc[VTIME] = 0; /* 1 byte, no timer */
-
-    /* put terminal in raw mode after flushing */
-    if (tcsetattr(fd,TCSAFLUSH,&raw) < 0) goto fatal;
-    rawmode = 1;
-    return 0;
-
-fatal:
-    errno = ENOTTY;
-    return -1;
-}
-
-static void disableRawMode(int fd) {
-    /* Don't even check the return value as it's too late. */
-    if (rawmode && tcsetattr(fd,TCSAFLUSH,&orig_termios) != -1)
-        rawmode = 0;
-}
-
 /* At exit we'll try to fix the terminal to the initial conditions. */
 static void linenoiseAtExit(void) {
-    disableRawMode(STDIN_FILENO);
+    termkey_stop(tk);
     freeHistory();
 }
 
@@ -487,8 +444,13 @@ up_down_arrow:
 static int linenoiseRaw(char *buf, size_t buflen, const char *prompt) {
     int count;
 
-    if(!tk)
-      tk = termkey_new(STDIN_FILENO, 0);
+    if(!tk) {
+        tk = termkey_new(STDIN_FILENO, 0);
+        if (!atexit_registered) {
+            atexit(linenoiseAtExit);
+            atexit_registered = 1;
+        }
+    }
 
     if (buflen == 0) {
         errno = EINVAL;
@@ -502,9 +464,9 @@ static int linenoiseRaw(char *buf, size_t buflen, const char *prompt) {
             buf[count] = '\0';
         }
     } else {
-        if (enableRawMode(termkey_get_fd(tk)) == -1) return -1;
+        if (!termkey_start(tk)) return -1;
         count = linenoisePrompt(tk, buf, buflen, prompt);
-        disableRawMode(termkey_get_fd(tk));
+        termkey_stop(tk);
         printf("\n");
     }
     return count;
