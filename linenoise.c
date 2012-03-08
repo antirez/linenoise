@@ -142,7 +142,7 @@ static void freeHistory(void) {
 
 /* At exit we'll try to fix the terminal to the initial conditions. */
 static void linenoiseAtExit(void) {
-    termkey_stop(tk);
+    termkey_destroy(tk);
     freeHistory();
 }
 
