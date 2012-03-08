@@ -293,18 +293,8 @@ static int linenoisePrompt(TermKey *tk, char *buf, size_t buflen, const char *pr
                 return -1;
             case 'h':
                 goto backspace;
-            case 'd':     /* ctrl-d, remove char at right of cursor */
-                if (len > 1 && pos < (len-1)) {
-                    memmove(buf+pos,buf+pos+1,len-pos);
-                    len--;
-                    buf[len] = '\0';
-                    refreshLine(fd,prompt,buf,len,pos,cols);
-                } else if (len == 0) {
-                    history_len--;
-                    free(history[history_len]);
-                    return -1;
-                }
-                break;
+            case 'd':
+                goto delete_key;
             case 't':
                 if (pos > 0 && pos < len) {
                     int aux = buf[pos-1];
@@ -334,14 +324,10 @@ static int linenoisePrompt(TermKey *tk, char *buf, size_t buflen, const char *pr
                 len = pos;
                 refreshLine(fd,prompt,buf,len,pos,cols);
                 break;
-            case 'a': /* Ctrl+a, go to the start of the line */
-                pos = 0;
-                refreshLine(fd,prompt,buf,len,pos,cols);
-                break;
-            case 'e': /* ctrl+e, go to the end of the line */
-                pos = len;
-                refreshLine(fd,prompt,buf,len,pos,cols);
-                break;
+            case 'a':
+                goto home_key;
+            case 'e':
+                goto end_key;
             case 'l': /* ctrl+l, clear screen */
                 linenoiseClearScreen();
                 refreshLine(fd,prompt,buf,len,pos,cols);
@@ -408,6 +394,29 @@ up_down_arrow:
                     buf[len] = '\0';
                     refreshLine(fd,prompt,buf,len,pos,cols);
                 }
+                break;
+            case TERMKEY_SYM_DELETE:
+delete_key:
+                if (len > 1 && pos < (len-1)) {
+                    memmove(buf+pos,buf+pos+1,len-pos);
+                    len--;
+                    buf[len] = '\0';
+                    refreshLine(fd,prompt,buf,len,pos,cols);
+                } else if (len == 0) {
+                    history_len--;
+                    free(history[history_len]);
+                    return -1;
+                }
+                break;
+            case TERMKEY_SYM_HOME:
+home_key:
+                pos = 0;
+                refreshLine(fd,prompt,buf,len,pos,cols);
+                break;
+            case TERMKEY_SYM_END:
+end_key:
+                pos = len;
+                refreshLine(fd,prompt,buf,len,pos,cols);
                 break;
             default: break;
             }
