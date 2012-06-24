@@ -8,37 +8,34 @@
  * Does a number of crazy assumptions that happen to be true in 99.9999% of
  * the 2010 UNIX computers around.
  *
- * ------------------------------------------------------------------------
- *
  * Copyright (c) 2010, Salvatore Sanfilippo <antirez at gmail dot com>
  * Copyright (c) 2010, Pieter Noordhuis <pcnoordhuis at gmail dot com>
  *
  * All rights reserved.
- * 
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- * 
- *  *  Redistributions of source code must retain the above copyright
- *     notice, this list of conditions and the following disclaimer.
  *
- *  *  Redistributions in binary form must reproduce the above copyright
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ *   * Redistributions of source code must retain the above copyright notice,
+ *     this list of conditions and the following disclaimer.
+ *   * Redistributions in binary form must reproduce the above copyright
  *     notice, this list of conditions and the following disclaimer in the
  *     documentation and/or other materials provided with the distribution.
- * 
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- * 
- * ------------------------------------------------------------------------
+ *   * Neither the name of Redis nor the names of its contributors may be used
+ *     to endorse or promote products derived from this software without
+ *     specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
  *
  * References:
  * - http://invisible-island.net/xterm/ctlseqs/ctlseqs.html
@@ -112,6 +109,21 @@ char **history = NULL;
 static void linenoiseAtExit(void);
 int linenoiseHistoryAdd(const char *line);
 
+char *tbuf = NULL;
+int tpos = -1;
+unsigned int pfrom = 0;
+int copy_once_lock = 0;
+
+void copy_once(char **copy, char *data)
+{
+    if (copy_once_lock)
+        return;
+    if (*copy)
+        free(*copy);
+    *copy = strdup(data);
+    copy_once_lock = 1;
+}
+
 static int isUnsupportedTerm(void) {
     char *term = getenv("TERM");
     int j;
@@ -177,6 +189,8 @@ static void disableRawMode(int fd) {
 static void linenoiseAtExit(void) {
     disableRawMode(STDIN_FILENO);
     freeHistory();
+    if (tbuf)
+        free(tbuf);
 }
 
 static int getColumns(void) {
@@ -321,6 +335,12 @@ static int linenoisePrompt(int fd, char *buf, size_t buflen, const char *prompt)
             if (c == 0) continue;
         }
 
+	/* Only keep searching buf if it's Ctrl-r, destroy otherwise */
+	if (c != 18) {
+	    pfrom = 0;
+	    copy_once_lock = 0;
+	}
+
         switch(c) {
         case 13:    /* enter */
             history_len--;
@@ -452,6 +472,14 @@ up_down_arrow:
             pos = len = 0;
             refreshLine(fd,prompt,buf,len,pos,cols);
             break;
+	case 18: /* Ctrl+r, search the history */
+	    copy_once(&tbuf, buf);
+	    if ((tpos = linenoiseHistorySearch(tbuf)) != -1) {
+	        strcpy(buf, history[tpos]);
+	        len = pos = strlen(buf);
+	        refreshLine(fd,prompt,buf,len,pos,cols);
+	    } else
+		pfrom = 0;
         case 11: /* Ctrl+k, delete from current to end of line. */
             buf[pos] = '\0';
             len = pos;
@@ -586,6 +614,22 @@ int linenoiseHistorySave(char *filename) {
         fprintf(fp,"%s\n",history[j]);
     fclose(fp);
     return 0;
+}
+
+int linenoiseHistorySearch(char *str) {
+
+    if (str == NULL)
+	return -1;
+
+    int i;
+    for (i = pfrom; i < history_len; i++) {
+        if (strstr(history[i], str) != NULL) {
+	    pfrom = i + 1;
+	    return i;
+        }
+    }
+
+    return -1;
 }
 
 /* Load the history from the specified file. If the file does not exist
