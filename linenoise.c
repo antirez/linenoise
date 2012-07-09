@@ -95,6 +95,7 @@
 #include <sys/types.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
+#include <ctype.h>
 #include "linenoise.h"
 
 #define LINENOISE_DEFAULT_HISTORY_MAX_LEN 100
@@ -107,6 +108,7 @@ static int rawmode = 0; /* for atexit() function to check if restore is needed*/
 static int atexit_registered = 0; /* register atexit just 1 time */
 static int history_max_len = LINENOISE_DEFAULT_HISTORY_MAX_LEN;
 static int history_len = 0;
+static int vi_mode = 0, vi_escape = 0;
 char **history = NULL;
 
 static void linenoiseAtExit(void);
@@ -329,6 +331,7 @@ static int linenoisePrompt(int fd, char *buf, size_t buflen, const char *prompt)
         case 3:     /* ctrl-c */
             errno = EAGAIN;
             return -1;
+    backspace:
         case 127:   /* backspace */
         case 8:     /* ctrl-h */
             if (pos > 0 && len > 0) {
@@ -371,60 +374,193 @@ static int linenoisePrompt(int fd, char *buf, size_t buflen, const char *prompt)
             seq[1] = 66;
             goto up_down_arrow;
             break;
-        case 27:    /* escape sequence */
-            if (read(fd,seq,2) == -1) break;
-            if (seq[0] == 91 && seq[1] == 68) {
-left_arrow:
-                /* left arrow */
-                if (pos > 0) {
-                    pos--;
-                    refreshLine(fd,prompt,buf,len,pos,cols);
-                }
-            } else if (seq[0] == 91 && seq[1] == 67) {
-right_arrow:
-                /* right arrow */
-                if (pos != len) {
-                    pos++;
-                    refreshLine(fd,prompt,buf,len,pos,cols);
-                }
-            } else if (seq[0] == 91 && (seq[1] == 65 || seq[1] == 66)) {
-up_down_arrow:
-                /* up and down arrow: history */
-                if (history_len > 1) {
-                    /* Update the current history entry before to
-                     * overwrite it with tne next one. */
-                    free(history[history_len-1-history_index]);
-                    history[history_len-1-history_index] = strdup(buf);
-                    /* Show the new entry */
-                    history_index += (seq[1] == 65) ? 1 : -1;
-                    if (history_index < 0) {
-                        history_index = 0;
-                        break;
-                    } else if (history_index >= history_len) {
-                        history_index = history_len-1;
-                        break;
-                    }
-                    strncpy(buf,history[history_len-1-history_index],buflen);
-                    buf[buflen] = '\0';
-                    len = pos = strlen(buf);
-                    refreshLine(fd,prompt,buf,len,pos,cols);
-                }
-            } else if (seq[0] == 91 && seq[1] > 48 && seq[1] < 55) {
-                /* extended escape */
-                if (read(fd,seq2,2) == -1) break;
-                if (seq[1] == 51 && seq2[0] == 126) {
-                    /* delete */
-                    if (len > 0 && pos < len) {
-                        memmove(buf+pos,buf+pos+1,len-pos-1);
-                        len--;
-                        buf[len] = '\0';
+        case 27:    /* escape sequence/vi command mode */
+            if (vi_mode) {
+                if(!vi_escape) {
+                    vi_escape = 1;
+                    if (pos > 0) {
+                        pos--;
                         refreshLine(fd,prompt,buf,len,pos,cols);
+                    }
+                }
+            } else {
+                if (read(fd,seq,2) == -1) break;
+                if (seq[0] == 91 && seq[1] == 68) {
+    left_arrow:
+                    /* left arrow */
+                    if (pos > 0) {
+                        pos--;
+                        refreshLine(fd,prompt,buf,len,pos,cols);
+                    }
+                } else if (seq[0] == 91 && seq[1] == 67) {
+    right_arrow:
+                    /* right arrow */
+                    if (pos != len) {
+                        pos++;
+                        refreshLine(fd,prompt,buf,len,pos,cols);
+                    }
+                } else if (seq[0] == 91 && (seq[1] == 65 || seq[1] == 66)) {
+    up_down_arrow:
+                    /* up and down arrow: history */
+                    if (history_len > 1) {
+                        /* Update the current history entry before to
+                        * overwrite it with tne next one. */
+                        free(history[history_len-1-history_index]);
+                        history[history_len-1-history_index] = strdup(buf);
+                        /* Show the new entry */
+                        history_index += (seq[1] == 65) ? 1 : -1;
+                        if (history_index < 0) {
+                            history_index = 0;
+                            break;
+                        } else if (history_index >= history_len) {
+                            history_index = history_len-1;
+                            break;
+                        }
+                        strncpy(buf,history[history_len-1-history_index],buflen);
+                        buf[buflen] = '\0';
+                        len = pos = strlen(buf);
+                        refreshLine(fd,prompt,buf,len,pos,cols);
+                    }
+                } else if (seq[0] == 91 && seq[1] > 48 && seq[1] < 55) {
+                    /* extended escape */
+                    if (read(fd,seq2,2) == -1) break;
+                    if (seq[1] == 51 && seq2[0] == 126) {
+    vi_dl:
+                        /* delete */
+                        if (len > 0 && pos < len) {
+                            memmove(buf+pos,buf+pos+1,len-pos-1);
+                            len--;
+                            buf[len] = '\0';
+                            refreshLine(fd,prompt,buf,len,pos,cols);
+                        }
                     }
                 }
             }
             break;
         default:
-            if (len < buflen) {
+            if (vi_mode && vi_escape) {
+                switch(c) {
+                    case 'C':
+                      vi_escape = 0;
+                    case 'D':
+                      goto vi_D;
+
+                    case '0': goto vi_0;
+                    case '$': goto vi_eol;
+                    case 'l': goto right_arrow;
+                    case 'h': goto left_arrow;
+
+                    case 'A':
+                        pos = len;
+                        refreshLine(fd,prompt,buf,len,pos,cols);
+                    case 'a':
+                        if (pos != len) {
+                            pos++;
+                            refreshLine(fd,prompt,buf,len,pos,cols);
+                        }
+                    case 'i':
+                        vi_escape = 0;
+                        break;
+                    case 'I':
+                        vi_escape = 0;
+                        pos = 0;
+                        refreshLine(fd,prompt,buf,len,pos,cols);
+                        break;
+
+                    case 'k':
+                        seq[1] = 65;
+                        goto up_down_arrow;
+                    case 'j':
+                        seq[1] = 66;
+                        goto up_down_arrow;
+
+                    case 'F':
+                    case 'f':
+                    case 'T':
+                    case 't':
+                    {
+                        ssize_t dir, lim, cpos;
+                        int find = 0; /* need to initialise the higher bytes */
+
+                        if (read(fd,&find,1) == -1) break;
+
+                        if (islower(c)) {
+                            /* forwards */
+                            lim = len;
+                            dir = 1;
+                        } else {
+                            lim = dir = -1;
+                        }
+
+                        for (cpos = pos + dir; cpos != lim; cpos += dir) {
+                            if (buf[cpos] == find) {
+                                pos = cpos;
+                                if (tolower(c) == 't')
+                                    pos -= dir;
+                                refreshLine(fd,prompt,buf,len,pos,cols);
+                                break;
+                            }
+                        }
+
+                        if (cpos == lim) beep();
+                        break;
+                    }
+
+                    case 'c':
+                        /* back to insert mode */
+                        vi_escape = 0;
+                    case 'd':
+                        if (read(fd,&c,1) == -1) break;
+
+                        switch(c) {
+                            case 'w': /* TODO: 'b' (reverse) */
+                            {
+                                size_t wordpos;
+
+                                for(wordpos = pos + 1;
+                                    wordpos < len &&
+                                        !isspace(buf[wordpos]) &&
+                                        !ispunct(buf[wordpos]);
+                                    wordpos++);
+
+                                if (wordpos < len)
+                                    wordpos++;
+                                else if (wordpos > len)
+                                    break;
+
+                                memmove(buf + pos, buf + wordpos, len - wordpos);
+                                len -= wordpos - pos;
+                                buf[len] = '\0';
+                                refreshLine(fd,prompt,buf,len,pos,cols);
+                                break;
+                            }
+
+                            case '$':
+                                goto vi_D;
+
+                            case 'l':
+                                goto vi_dl;
+
+                            case 'h':
+                                goto backspace;
+
+                            case 'c':
+                            case 'd':
+                                goto vi_dd;
+
+                            default:
+                                beep();
+                                /* back into command mode, since it's an invalid command */
+                                vi_escape = 1;
+                                break;
+                        }
+                        break;
+
+                    default:
+                        beep();
+                        break;
+                }
+            } else if (len < buflen) {
                 if (len == pos) {
                     buf[pos] = c;
                     pos++;
@@ -448,20 +584,24 @@ up_down_arrow:
             }
             break;
         case 21: /* Ctrl+u, delete the whole line. */
+    vi_dd:
             buf[0] = '\0';
             pos = len = 0;
             refreshLine(fd,prompt,buf,len,pos,cols);
             break;
         case 11: /* Ctrl+k, delete from current to end of line. */
+    vi_D:
             buf[pos] = '\0';
             len = pos;
             refreshLine(fd,prompt,buf,len,pos,cols);
             break;
         case 1: /* Ctrl+a, go to the start of the line */
+    vi_0:
             pos = 0;
             refreshLine(fd,prompt,buf,len,pos,cols);
             break;
         case 5: /* ctrl+e, go to the end of the line */
+    vi_eol:
             pos = len;
             refreshLine(fd,prompt,buf,len,pos,cols);
             break;
@@ -609,4 +749,8 @@ int linenoiseHistoryLoad(char *filename) {
     }
     fclose(fp);
     return 0;
+}
+
+void linenoiseViMode(int on) {
+    vi_mode = on;
 }
