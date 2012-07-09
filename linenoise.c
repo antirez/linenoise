@@ -409,6 +409,16 @@ up_down_arrow:
                     len = pos = strlen(buf);
                     refreshLine(fd,prompt,buf,len,pos,cols);
                 }
+            } else if ((seq[0] == 79 || seq[0] == 91) && seq[1] == 70) {
+end_key:
+                /* end key */
+                pos = len;
+                refreshLine(fd,prompt,buf,len,pos,cols);
+            } else if ((seq[0] == 79 || seq[0] == 91) && seq[1] == 72) {
+home_key:
+                /* home key */
+                pos = 0;
+                refreshLine(fd,prompt,buf,len,pos,cols);
             } else if (seq[0] == 91 && seq[1] > 48 && seq[1] < 55) {
                 /* extended escape */
                 if (read(fd,seq2,2) == -1) break;
@@ -458,13 +468,9 @@ up_down_arrow:
             refreshLine(fd,prompt,buf,len,pos,cols);
             break;
         case 1: /* Ctrl+a, go to the start of the line */
-            pos = 0;
-            refreshLine(fd,prompt,buf,len,pos,cols);
-            break;
+            goto home_key;
         case 5: /* ctrl+e, go to the end of the line */
-            pos = len;
-            refreshLine(fd,prompt,buf,len,pos,cols);
-            break;
+            goto end_key;
         case 12: /* ctrl+l, clear screen */
             linenoiseClearScreen();
             refreshLine(fd,prompt,buf,len,pos,cols);
