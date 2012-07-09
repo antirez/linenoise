@@ -95,6 +95,7 @@
 #include <sys/types.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
+#include <termkey.h>
 #include "linenoise.h"
 
 #define LINENOISE_DEFAULT_HISTORY_MAX_LEN 100
@@ -102,12 +103,19 @@
 static char *unsupported_term[] = {"dumb","cons25",NULL};
 static linenoiseCompletionCallback *completionCallback = NULL;
 
-static struct termios orig_termios; /* in order to restore at exit */
-static int rawmode = 0; /* for atexit() function to check if restore is needed*/
 static int atexit_registered = 0; /* register atexit just 1 time */
 static int history_max_len = LINENOISE_DEFAULT_HISTORY_MAX_LEN;
 static int history_len = 0;
 char **history = NULL;
+static TermKey *tk = NULL;
+
+/* Some useful termkey utilities */
+static int termkey_key_is_keysym(TermKeyKey *key, TermKeySym sym, int mod)
+{
+  return key->type      == TERMKEY_TYPE_KEYSYM &&
+         key->code.sym  == sym &&
+         key->modifiers == mod;
+}
 
 static void linenoiseAtExit(void);
 int linenoiseHistoryAdd(const char *line);
@@ -132,50 +140,9 @@ static void freeHistory(void) {
     }
 }
 
-static int enableRawMode(int fd) {
-    struct termios raw;
-
-    if (!isatty(STDIN_FILENO)) goto fatal;
-    if (!atexit_registered) {
-        atexit(linenoiseAtExit);
-        atexit_registered = 1;
-    }
-    if (tcgetattr(fd,&orig_termios) == -1) goto fatal;
-
-    raw = orig_termios;  /* modify the original mode */
-    /* input modes: no break, no CR to NL, no parity check, no strip char,
-     * no start/stop output control. */
-    raw.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
-    /* output modes - disable post processing */
-    raw.c_oflag &= ~(OPOST);
-    /* control modes - set 8 bit chars */
-    raw.c_cflag |= (CS8);
-    /* local modes - choing off, canonical off, no extended functions,
-     * no signal chars (^Z,^C) */
-    raw.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
-    /* control chars - set return condition: min number of bytes and timer.
-     * We want read to return every single byte, without timeout. */
-    raw.c_cc[VMIN] = 1; raw.c_cc[VTIME] = 0; /* 1 byte, no timer */
-
-    /* put terminal in raw mode after flushing */
-    if (tcsetattr(fd,TCSAFLUSH,&raw) < 0) goto fatal;
-    rawmode = 1;
-    return 0;
-
-fatal:
-    errno = ENOTTY;
-    return -1;
-}
-
-static void disableRawMode(int fd) {
-    /* Don't even check the return value as it's too late. */
-    if (rawmode && tcsetattr(fd,TCSAFLUSH,&orig_termios) != -1)
-        rawmode = 0;
-}
-
 /* At exit we'll try to fix the terminal to the initial conditions. */
 static void linenoiseAtExit(void) {
-    disableRawMode(STDIN_FILENO);
+    termkey_destroy(tk);
     freeHistory();
 }
 
@@ -226,10 +193,11 @@ static void freeCompletions(linenoiseCompletions *lc) {
         free(lc->cvec);
 }
 
-static int completeLine(int fd, const char *prompt, char *buf, size_t buflen, size_t *len, size_t *pos, size_t cols) {
+static int completeLine(TermKey *tk, TermKeyKey *keyp, const char *prompt, char *buf, size_t buflen, size_t *len, size_t *pos, size_t cols) {
     linenoiseCompletions lc = { 0, NULL };
-    int nread, nwritten;
-    char c = 0;
+    int nwritten;
+
+    int fd = termkey_get_fd(tk);
 
     completionCallback(buf,&lc);
     if (lc.len == 0) {
@@ -247,38 +215,35 @@ static int completeLine(int fd, const char *prompt, char *buf, size_t buflen, si
                 refreshLine(fd,prompt,buf,*len,*pos,cols);
             }
 
-            nread = read(fd,&c,1);
-            if (nread <= 0) {
+            if(termkey_waitkey(tk, keyp) != TERMKEY_RES_KEY) {
                 freeCompletions(&lc);
                 return -1;
             }
 
-            switch(c) {
-                case 9: /* tab */
-                    i = (i+1) % (lc.len+1);
-                    if (i == lc.len) beep();
-                    break;
-                case 27: /* escape */
-                    /* Re-show original buffer */
-                    if (i < lc.len) {
-                        refreshLine(fd,prompt,buf,*len,*pos,cols);
-                    }
-                    stop = 1;
-                    break;
-                default:
-                    /* Update buffer and return */
-                    if (i < lc.len) {
-                        nwritten = snprintf(buf,buflen,"%s",lc.cvec[i]);
-                        *len = *pos = nwritten;
-                    }
-                    stop = 1;
-                    break;
+            if(termkey_key_is_keysym(keyp, TERMKEY_SYM_TAB, 0)) {
+                i = (i+1) % (lc.len+1);
+                if (i == lc.len) beep();
+            }
+            else if(termkey_key_is_keysym(keyp, TERMKEY_SYM_ESCAPE, 0)) {
+                /* Re-show original buffer */
+                if (i < lc.len) {
+                    refreshLine(fd,prompt,buf,*len,*pos,cols);
+                }
+                stop = 1;
+            }
+            else {
+                /* Update buffer and return */
+                if (i < lc.len) {
+                    nwritten = snprintf(buf,buflen,"%s",lc.cvec[i]);
+                    *len = *pos = nwritten;
+                }
+                stop = 1;
             }
         }
     }
 
     freeCompletions(&lc);
-    return c; /* Return last read character */
+    return 1;
 }
 
 void linenoiseClearScreen(void) {
@@ -287,12 +252,14 @@ void linenoiseClearScreen(void) {
     }
 }
 
-static int linenoisePrompt(int fd, char *buf, size_t buflen, const char *prompt) {
+static int linenoisePrompt(TermKey *tk, char *buf, size_t buflen, const char *prompt) {
     size_t plen = strlen(prompt);
     size_t pos = 0;
     size_t len = 0;
     size_t cols = getColumns();
     int history_index = 0;
+
+    int fd = termkey_get_fd(tk);
 
     buf[0] = '\0';
     buflen--; /* Make sure there is always space for the nulterm */
@@ -301,93 +268,103 @@ static int linenoisePrompt(int fd, char *buf, size_t buflen, const char *prompt)
      * initially is just an empty string. */
     linenoiseHistoryAdd("");
     
-    if (write(fd,prompt,plen) == -1) return -1;
+    if (write(termkey_get_fd(tk),prompt,plen) == -1) return -1;
     while(1) {
-        char c;
-        int nread;
-        char seq[2], seq2[2];
-
-        nread = read(fd,&c,1);
-        if (nread <= 0) return len;
+        TermKeyKey key;
+        if(termkey_waitkey(tk, &key) != TERMKEY_RES_KEY)
+          return len;
 
         /* Only autocomplete when the callback is set. It returns < 0 when
          * there was an error reading from fd. Otherwise it will return the
          * character that should be handled next. */
-        if (c == 9 && completionCallback != NULL) {
-            c = completeLine(fd,prompt,buf,buflen,&len,&pos,cols);
+        if (termkey_key_is_keysym(&key, TERMKEY_SYM_TAB, 0) && completionCallback != NULL) {
+            int c = completeLine(tk,&key,prompt,buf,buflen,&len,&pos,cols);
+            /* TODO */
             /* Return on errors */
             if (c < 0) return len;
             /* Read next character when 0 */
             if (c == 0) continue;
         }
 
-        switch(c) {
-        case 13:    /* enter */
-            history_len--;
-            free(history[history_len]);
-            return (int)len;
-        case 3:     /* ctrl-c */
-            errno = EAGAIN;
-            return -1;
-        case 127:   /* backspace */
-        case 8:     /* ctrl-h */
-            if (pos > 0 && len > 0) {
-                memmove(buf+pos-1,buf+pos,len-pos);
-                pos--;
-                len--;
-                buf[len] = '\0';
+        if(key.type == TERMKEY_TYPE_UNICODE && key.modifiers == TERMKEY_KEYMOD_CTRL) {
+            switch(key.code.codepoint) {
+            case 'c':
+                errno = EAGAIN;
+                return -1;
+            case 'h':
+                goto backspace;
+            case 'd':
+                goto delete_key;
+            case 't':
+                if (pos > 0 && pos < len) {
+                    int aux = buf[pos-1];
+                    buf[pos-1] = buf[pos];
+                    buf[pos] = aux;
+                    if (pos != len-1) pos++;
+                    refreshLine(fd,prompt,buf,len,pos,cols);
+                }
+                break;
+            case 'b':
+                goto left_arrow;
+            case 'f':
+                goto right_arrow;
+            case 'p':
+                key.code.sym = TERMKEY_SYM_UP;
+                goto up_down_arrow;
+            case 'n':
+                key.code.sym = TERMKEY_SYM_DOWN;
+                goto up_down_arrow;
+            case 'u': /* Ctrl+u, delete the whole line. */
+                buf[0] = '\0';
+                pos = len = 0;
+                refreshLine(fd,prompt,buf,len,pos,cols);
+                break;
+            case 'k': /* Ctrl+k, delete from current to end of line. */
+                buf[pos] = '\0';
+                len = pos;
+                refreshLine(fd,prompt,buf,len,pos,cols);
+                break;
+            case 'a':
+                goto home_key;
+            case 'e':
+                goto end_key;
+            case 'l': /* ctrl+l, clear screen */
+                linenoiseClearScreen();
                 refreshLine(fd,prompt,buf,len,pos,cols);
             }
-            break;
-        case 4:     /* ctrl-d, remove char at right of cursor */
-            if (len > 1 && pos < (len-1)) {
-                memmove(buf+pos,buf+pos+1,len-pos);
-                len--;
-                buf[len] = '\0';
-                refreshLine(fd,prompt,buf,len,pos,cols);
-            } else if (len == 0) {
+        }
+        else if (key.type == TERMKEY_TYPE_KEYSYM && key.modifiers == 0) {
+            switch(key.code.sym) {
+            case TERMKEY_SYM_ENTER:
                 history_len--;
                 free(history[history_len]);
-                return -1;
-            }
-            break;
-        case 20:    /* ctrl-t */
-            if (pos > 0 && pos < len) {
-                int aux = buf[pos-1];
-                buf[pos-1] = buf[pos];
-                buf[pos] = aux;
-                if (pos != len-1) pos++;
-                refreshLine(fd,prompt,buf,len,pos,cols);
-            }
-            break;
-        case 2:     /* ctrl-b */
-            goto left_arrow;
-        case 6:     /* ctrl-f */
-            goto right_arrow;
-        case 16:    /* ctrl-p */
-            seq[1] = 65;
-            goto up_down_arrow;
-        case 14:    /* ctrl-n */
-            seq[1] = 66;
-            goto up_down_arrow;
-            break;
-        case 27:    /* escape sequence */
-            if (read(fd,seq,2) == -1) break;
-            if (seq[0] == 91 && seq[1] == 68) {
+                return (int)len;
+            case TERMKEY_SYM_BACKSPACE:
+backspace:
+                if (pos > 0 && len > 0) {
+                    memmove(buf+pos-1,buf+pos,len-pos);
+                    pos--;
+                    len--;
+                    buf[len] = '\0';
+                    refreshLine(fd,prompt,buf,len,pos,cols);
+                }
+                break;
+            case TERMKEY_SYM_LEFT:
 left_arrow:
-                /* left arrow */
                 if (pos > 0) {
                     pos--;
                     refreshLine(fd,prompt,buf,len,pos,cols);
                 }
-            } else if (seq[0] == 91 && seq[1] == 67) {
+                break;
+            case TERMKEY_SYM_RIGHT:
 right_arrow:
-                /* right arrow */
                 if (pos != len) {
                     pos++;
                     refreshLine(fd,prompt,buf,len,pos,cols);
                 }
-            } else if (seq[0] == 91 && (seq[1] == 65 || seq[1] == 66)) {
+                break;
+            case TERMKEY_SYM_UP:
+            case TERMKEY_SYM_DOWN:
 up_down_arrow:
                 /* up and down arrow: history */
                 if (history_len > 1) {
@@ -396,7 +373,7 @@ up_down_arrow:
                     free(history[history_len-1-history_index]);
                     history[history_len-1-history_index] = strdup(buf);
                     /* Show the new entry */
-                    history_index += (seq[1] == 65) ? 1 : -1;
+                    history_index += (key.code.sym == TERMKEY_SYM_UP) ? 1 : -1;
                     if (history_index < 0) {
                         history_index = 0;
                         break;
@@ -409,73 +386,80 @@ up_down_arrow:
                     len = pos = strlen(buf);
                     refreshLine(fd,prompt,buf,len,pos,cols);
                 }
-            } else if (seq[0] == 91 && seq[1] > 48 && seq[1] < 55) {
-                /* extended escape */
-                if (read(fd,seq2,2) == -1) break;
-                if (seq[1] == 51 && seq2[0] == 126) {
-                    /* delete */
-                    if (len > 0 && pos < len) {
-                        memmove(buf+pos,buf+pos+1,len-pos-1);
-                        len--;
-                        buf[len] = '\0';
-                        refreshLine(fd,prompt,buf,len,pos,cols);
-                    }
+                break;
+            case TERMKEY_SYM_DEL:
+                if (len > 0 && pos < len) {
+                    memmove(buf+pos,buf+pos+1,len-pos-1);
+                    len--;
+                    buf[len] = '\0';
+                    refreshLine(fd,prompt,buf,len,pos,cols);
                 }
+                break;
+            case TERMKEY_SYM_DELETE:
+delete_key:
+                if (len > 1 && pos < (len-1)) {
+                    memmove(buf+pos,buf+pos+1,len-pos);
+                    len--;
+                    buf[len] = '\0';
+                    refreshLine(fd,prompt,buf,len,pos,cols);
+                } else if (len == 0) {
+                    history_len--;
+                    free(history[history_len]);
+                    return -1;
+                }
+                break;
+            case TERMKEY_SYM_HOME:
+home_key:
+                pos = 0;
+                refreshLine(fd,prompt,buf,len,pos,cols);
+                break;
+            case TERMKEY_SYM_END:
+end_key:
+                pos = len;
+                refreshLine(fd,prompt,buf,len,pos,cols);
+                break;
+            default: break;
             }
-            break;
-        default:
+        }
+        else if (key.type == TERMKEY_TYPE_UNICODE && key.modifiers == 0) {
             if (len < buflen) {
                 if (len == pos) {
-                    buf[pos] = c;
+                    /* TODO: UTF-8 handling */
+                    buf[pos] = key.utf8[0];
                     pos++;
                     len++;
                     buf[len] = '\0';
                     if (plen+len < cols) {
                         /* Avoid a full update of the line in the
                          * trivial case. */
-                        if (write(fd,&c,1) == -1) return -1;
+                        if (write(fd,&key.utf8[0],1) == -1) return -1;
                     } else {
                         refreshLine(fd,prompt,buf,len,pos,cols);
                     }
                 } else {
                     memmove(buf+pos+1,buf+pos,len-pos);
-                    buf[pos] = c;
+                    buf[pos] = key.utf8[0];
                     len++;
                     pos++;
                     buf[len] = '\0';
                     refreshLine(fd,prompt,buf,len,pos,cols);
                 }
             }
-            break;
-        case 21: /* Ctrl+u, delete the whole line. */
-            buf[0] = '\0';
-            pos = len = 0;
-            refreshLine(fd,prompt,buf,len,pos,cols);
-            break;
-        case 11: /* Ctrl+k, delete from current to end of line. */
-            buf[pos] = '\0';
-            len = pos;
-            refreshLine(fd,prompt,buf,len,pos,cols);
-            break;
-        case 1: /* Ctrl+a, go to the start of the line */
-            pos = 0;
-            refreshLine(fd,prompt,buf,len,pos,cols);
-            break;
-        case 5: /* ctrl+e, go to the end of the line */
-            pos = len;
-            refreshLine(fd,prompt,buf,len,pos,cols);
-            break;
-        case 12: /* ctrl+l, clear screen */
-            linenoiseClearScreen();
-            refreshLine(fd,prompt,buf,len,pos,cols);
         }
     }
     return len;
 }
 
 static int linenoiseRaw(char *buf, size_t buflen, const char *prompt) {
-    int fd = STDIN_FILENO;
     int count;
+
+    if(!tk) {
+        tk = termkey_new(STDIN_FILENO, 0);
+        if (!atexit_registered) {
+            atexit(linenoiseAtExit);
+            atexit_registered = 1;
+        }
+    }
 
     if (buflen == 0) {
         errno = EINVAL;
@@ -489,9 +473,9 @@ static int linenoiseRaw(char *buf, size_t buflen, const char *prompt) {
             buf[count] = '\0';
         }
     } else {
-        if (enableRawMode(fd) == -1) return -1;
-        count = linenoisePrompt(fd, buf, buflen, prompt);
-        disableRawMode(fd);
+        if (!termkey_start(tk)) return -1;
+        count = linenoisePrompt(tk, buf, buflen, prompt);
+        termkey_stop(tk);
         printf("\n");
     }
     return count;
