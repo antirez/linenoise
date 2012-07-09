@@ -305,7 +305,7 @@ static int linenoisePrompt(int fd, char *buf, size_t buflen, const char *prompt)
     while(1) {
         char c;
         int nread;
-        char seq[2], seq2[2];
+        char seq[2], seq2;
 
         nread = read(fd,&c,1);
         if (nread <= 0) return len;
@@ -411,8 +411,8 @@ up_down_arrow:
                 }
             } else if (seq[0] == 91 && seq[1] > 48 && seq[1] < 55) {
                 /* extended escape */
-                if (read(fd,seq2,2) == -1) break;
-                if (seq[1] == 51 && seq2[0] == 126) {
+                if (read(fd,&seq2,1) == -1) break;
+                if (seq[1] == 51 && seq2 == 126) {
                     /* delete */
                     if (len > 0 && pos < len) {
                         memmove(buf+pos,buf+pos+1,len-pos-1);
