@@ -373,6 +373,10 @@ static int linenoisePrompt(int fd, char *buf, size_t buflen, const char *prompt)
             seq[1] = 66;
             goto up_down_arrow;
             break;
+        case 1: /* Ctrl+a, go to the start of the line */
+            goto home_key;
+        case 5: /* ctrl+e, go to the end of the line */
+            goto end_key;
         case 27:    /* escape sequence */
             if (read(fd,seq,2) == -1) break;
             if (seq[0] == 91 && seq[1] == 68) {
@@ -422,7 +426,19 @@ up_down_arrow:
                         buf[len] = '\0';
                         refreshLine(fd,prompt,buf,len,pos,cols);
                     }
+                } else if (seq[0] == 91 && seq[1] == 49) {
+                    goto home_key;
+                } else if (seq[0] == 91 && seq[1] == 52) {
+                    goto end_key;
                 }
+            } else if ((seq[0] == 79 || seq[0] == 91) && seq[1] == 72) {
+home_key:
+                pos = 0;
+                refreshLine(fd,prompt,buf,len,pos,cols);
+            } else if ((seq[0] == 79 || seq[0] == 91) && seq[1] == 70) {
+end_key:
+                pos = len;
+                refreshLine(fd,prompt,buf,len,pos,cols);
             }
             break;
         default:
@@ -457,14 +473,6 @@ up_down_arrow:
         case 11: /* Ctrl+k, delete from current to end of line. */
             buf[pos] = '\0';
             len = pos;
-            refreshLine(fd,prompt,buf,len,pos,cols);
-            break;
-        case 1: /* Ctrl+a, go to the start of the line */
-            pos = 0;
-            refreshLine(fd,prompt,buf,len,pos,cols);
-            break;
-        case 5: /* ctrl+e, go to the end of the line */
-            pos = len;
             refreshLine(fd,prompt,buf,len,pos,cols);
             break;
         case 12: /* ctrl+l, clear screen */
