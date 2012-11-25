@@ -99,7 +99,7 @@
 
 #define LINENOISE_DEFAULT_HISTORY_MAX_LEN 100
 #define LINENOISE_MAX_LINE 4096
-static char *unsupported_term[] = {"dumb","cons25",NULL};
+static const char *unsupported_term[] = {"dumb","cons25",NULL};
 static linenoiseCompletionCallback *completionCallback = NULL;
 
 static struct termios orig_termios; /* in order to restore at exit */
@@ -541,9 +541,9 @@ void linenoiseSetCompletionCallback(linenoiseCompletionCallback *fn) {
 
 void linenoiseAddCompletion(linenoiseCompletions *lc, char *str) {
     size_t len = strlen(str);
-    char *copy = malloc(len+1);
+    char *copy = (char*) malloc(len+1);
     memcpy(copy,str,len+1);
-    lc->cvec = realloc(lc->cvec,sizeof(char*)*(lc->len+1));
+    lc->cvec = (char**) realloc(lc->cvec,sizeof(char*)*(lc->len+1));
     lc->cvec[lc->len++] = copy;
 }
 
@@ -553,7 +553,7 @@ int linenoiseHistoryAdd(const char *line) {
 
     if (history_max_len == 0) return 0;
     if (history == NULL) {
-        history = malloc(sizeof(char*)*history_max_len);
+        history = (char**) malloc(sizeof(char*)*history_max_len);
         if (history == NULL) return 0;
         memset(history,0,(sizeof(char*)*history_max_len));
     }
@@ -570,18 +570,18 @@ int linenoiseHistoryAdd(const char *line) {
 }
 
 int linenoiseHistorySetMaxLen(int len) {
-    char **new;
+    char **newhist;
 
     if (len < 1) return 0;
     if (history) {
         int tocopy = history_len;
 
-        new = malloc(sizeof(char*)*len);
-        if (new == NULL) return 0;
+        newhist = (char**) malloc(sizeof(char*)*len);
+        if (newhist == NULL) return 0;
         if (len < tocopy) tocopy = len;
-        memcpy(new,history+(history_max_len-tocopy), sizeof(char*)*tocopy);
+        memcpy(newhist,history+(history_max_len-tocopy), sizeof(char*)*tocopy);
         free(history);
-        history = new;
+        history = newhist;
     }
     history_max_len = len;
     if (history_len > history_max_len)
