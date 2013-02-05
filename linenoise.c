@@ -127,6 +127,8 @@ struct linenoiseState {
 static void linenoiseAtExit(void);
 int linenoiseHistoryAdd(const char *line);
 
+/* Return true if the terminal name is in the list of terminals we know are
+ * not able to understand basic escape sequences. */
 static int isUnsupportedTerm(void) {
     char *term = getenv("TERM");
     int j;
@@ -137,6 +139,8 @@ static int isUnsupportedTerm(void) {
     return 0;
 }
 
+/* Free the history, but does not reset it. Only used when we have to
+ * exit() to avoid memory leaks are reported by valgrind & co. */
 static void freeHistory(void) {
     if (history) {
         int j;
@@ -147,6 +151,7 @@ static void freeHistory(void) {
     }
 }
 
+/* Raw mode: 1960 magic shit. */
 static int enableRawMode(int fd) {
     struct termios raw;
 
@@ -194,6 +199,8 @@ static void linenoiseAtExit(void) {
     freeHistory();
 }
 
+/* Try to get the number of columns in the current terminal, or assume 80
+ * if it fails. */
 static int getColumns(void) {
     struct winsize ws;
 
@@ -201,6 +208,8 @@ static int getColumns(void) {
     return ws.ws_col;
 }
 
+/* Rewrite the currently edited line accordingly to the buffer content,
+ * cursor position, and number of columns of the terminal. */
 static void refreshLineRaw(int fd, const char *prompt, char *buf, size_t len,
                            size_t pos, size_t cols)
 {
@@ -230,15 +239,20 @@ static void refreshLineRaw(int fd, const char *prompt, char *buf, size_t len,
     if (write(fd,seq,strlen(seq)) == -1) return;
 }
 
+/* A wrapper for refreshLineRaw() that take a state struct instead of the
+ * single arguments. */
 static void refreshLine(struct linenoiseState *l) {
     refreshLineRaw(l->fd, l->prompt, l->buf, l->len, l->pos, l->cols);
 }
 
+/* Beep, used for completion when there is nothing to complete or when all
+ * the choices were already shown. */
 static void beep() {
     fprintf(stderr, "\x7");
     fflush(stderr);
 }
 
+/* Free a list of completion option populated by linenoiseAddCompletion(). */
 static void freeCompletions(linenoiseCompletions *lc) {
     size_t i;
     for (i = 0; i < lc->len; i++)
@@ -247,6 +261,12 @@ static void freeCompletions(linenoiseCompletions *lc) {
         free(lc->cvec);
 }
 
+/* This is an helper function for linenoisePrompt() and is called when the
+ * user types the <tab> key in order to complete the string currently in the
+ * input.
+ * 
+ * The state of the editing is encapsulated into the pointed linenoiseState
+ * structure as described in the structure definition. */
 static int completeLine(struct linenoiseState *ls) {
     linenoiseCompletions lc = { 0, NULL };
     int nread, nwritten;
@@ -300,12 +320,21 @@ static int completeLine(struct linenoiseState *ls) {
     return c; /* Return last read character */
 }
 
+/* Clear the screen. Used to handle ctrl+l */
 void linenoiseClearScreen(void) {
     if (write(STDIN_FILENO,"\x1b[H\x1b[2J",7) <= 0) {
         /* nothing to do, just to avoid warning. */
     }
 }
 
+/* This function is the core of the line editing capability of linenoise.
+ * It expects 'fd' to be already in "raw mode" so that every key pressed
+ * will be returned ASAP to read().
+ *
+ * The resulting string is put into 'buf' when the user type enter, or
+ * when ctrl+d is typed.
+ *
+ * The function returns the length of the current buffer. */
 static int linenoisePrompt(int fd, char *buf, size_t buflen, const char *prompt)
 {
     struct linenoiseState l;
@@ -516,6 +545,8 @@ up_down_arrow:
     return l.len;
 }
 
+/* This function calls the line editing function linenoisePrompt() using
+ * the STDIN file descriptor set in raw mode. */
 static int linenoiseRaw(char *buf, size_t buflen, const char *prompt) {
     int fd = STDIN_FILENO;
     int count;
@@ -540,6 +571,11 @@ static int linenoiseRaw(char *buf, size_t buflen, const char *prompt) {
     return count;
 }
 
+/* The high level function that is the main API of the linenoise library.
+ * This function checks if the terminal has basic capabilities, just checking
+ * for a blacklist of stupid terminals, and later either calls the line
+ * editing function or uses dummy fgets() so that you will be able to type
+ * something even in the most desperate of the conditions. */
 char *linenoise(const char *prompt) {
     char buf[LINENOISE_MAX_LINE];
     int count;
@@ -568,6 +604,10 @@ void linenoiseSetCompletionCallback(linenoiseCompletionCallback *fn) {
     completionCallback = fn;
 }
 
+/* This function is used by the callback function registered by the user
+ * in order to add completion options given the input string when the
+ * user typed <tab>. See the example.c source code for a very easy to
+ * understand example. */
 void linenoiseAddCompletion(linenoiseCompletions *lc, char *str) {
     size_t len = strlen(str);
     char *copy = malloc(len+1);
@@ -598,6 +638,10 @@ int linenoiseHistoryAdd(const char *line) {
     return 1;
 }
 
+/* Set the maximum length for the history. This function can be called even
+ * if there is already some history, the function will make sure to retain
+ * just the latest 'len' elements if the new history length value is smaller
+ * than the amount of items already inside the history. */
 int linenoiseHistorySetMaxLen(int len) {
     char **new;
 
