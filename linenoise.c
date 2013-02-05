@@ -50,7 +50,6 @@
  * - Win32 support
  *
  * Bloat:
- * - Completion?
  * - History search like Ctrl+r in readline?
  *
  * List of escape sequences used by this program, we do everything just
@@ -126,6 +125,11 @@ struct linenoiseState {
 
 static void linenoiseAtExit(void);
 int linenoiseHistoryAdd(const char *line);
+static void refreshLine(struct linenoiseState *l);
+static void refreshLineRaw(int fd, const char *prompt, char *buf, size_t len,
+                           size_t pos, size_t cols);
+
+/* ======================= Low level terminal handling ====================== */
 
 /* Return true if the terminal name is in the list of terminals we know are
  * not able to understand basic escape sequences. */
@@ -137,18 +141,6 @@ static int isUnsupportedTerm(void) {
     for (j = 0; unsupported_term[j]; j++)
         if (!strcasecmp(term,unsupported_term[j])) return 1;
     return 0;
-}
-
-/* Free the history, but does not reset it. Only used when we have to
- * exit() to avoid memory leaks are reported by valgrind & co. */
-static void freeHistory(void) {
-    if (history) {
-        int j;
-
-        for (j = 0; j < history_len; j++)
-            free(history[j]);
-        free(history);
-    }
 }
 
 /* Raw mode: 1960 magic shit. */
@@ -193,12 +185,6 @@ static void disableRawMode(int fd) {
         rawmode = 0;
 }
 
-/* At exit we'll try to fix the terminal to the initial conditions. */
-static void linenoiseAtExit(void) {
-    disableRawMode(STDIN_FILENO);
-    freeHistory();
-}
-
 /* Try to get the number of columns in the current terminal, or assume 80
  * if it fails. */
 static int getColumns(void) {
@@ -207,6 +193,109 @@ static int getColumns(void) {
     if (ioctl(1, TIOCGWINSZ, &ws) == -1) return 80;
     return ws.ws_col;
 }
+
+/* Clear the screen. Used to handle ctrl+l */
+void linenoiseClearScreen(void) {
+    if (write(STDIN_FILENO,"\x1b[H\x1b[2J",7) <= 0) {
+        /* nothing to do, just to avoid warning. */
+    }
+}
+
+/* Beep, used for completion when there is nothing to complete or when all
+ * the choices were already shown. */
+static void linenoiseBeep(void) {
+    fprintf(stderr, "\x7");
+    fflush(stderr);
+}
+
+/* ============================== Completion ================================ */
+
+/* Free a list of completion option populated by linenoiseAddCompletion(). */
+static void freeCompletions(linenoiseCompletions *lc) {
+    size_t i;
+    for (i = 0; i < lc->len; i++)
+        free(lc->cvec[i]);
+    if (lc->cvec != NULL)
+        free(lc->cvec);
+}
+
+/* This is an helper function for linenoiseEdit() and is called when the
+ * user types the <tab> key in order to complete the string currently in the
+ * input.
+ * 
+ * The state of the editing is encapsulated into the pointed linenoiseState
+ * structure as described in the structure definition. */
+static int completeLine(struct linenoiseState *ls) {
+    linenoiseCompletions lc = { 0, NULL };
+    int nread, nwritten;
+    char c = 0;
+
+    completionCallback(ls->buf,&lc);
+    if (lc.len == 0) {
+        linenoiseBeep();
+    } else {
+        size_t stop = 0, i = 0;
+        size_t clen;
+
+        while(!stop) {
+            /* Show completion or original buffer */
+            if (i < lc.len) {
+                clen = strlen(lc.cvec[i]);
+                refreshLineRaw(ls->fd,ls->prompt,lc.cvec[i],clen,clen,ls->cols);
+            } else {
+                refreshLine(ls);
+            }
+
+            nread = read(ls->fd,&c,1);
+            if (nread <= 0) {
+                freeCompletions(&lc);
+                return -1;
+            }
+
+            switch(c) {
+                case 9: /* tab */
+                    i = (i+1) % (lc.len+1);
+                    if (i == lc.len) linenoiseBeep();
+                    break;
+                case 27: /* escape */
+                    /* Re-show original buffer */
+                    if (i < lc.len) refreshLine(ls);
+                    stop = 1;
+                    break;
+                default:
+                    /* Update buffer and return */
+                    if (i < lc.len) {
+                        nwritten = snprintf(ls->buf,ls->buflen,"%s",lc.cvec[i]);
+                        ls->len = ls->pos = nwritten;
+                    }
+                    stop = 1;
+                    break;
+            }
+        }
+    }
+
+    freeCompletions(&lc);
+    return c; /* Return last read character */
+}
+
+/* Register a callback function to be called for tab-completion. */
+void linenoiseSetCompletionCallback(linenoiseCompletionCallback *fn) {
+    completionCallback = fn;
+}
+
+/* This function is used by the callback function registered by the user
+ * in order to add completion options given the input string when the
+ * user typed <tab>. See the example.c source code for a very easy to
+ * understand example. */
+void linenoiseAddCompletion(linenoiseCompletions *lc, char *str) {
+    size_t len = strlen(str);
+    char *copy = malloc(len+1);
+    memcpy(copy,str,len+1);
+    lc->cvec = realloc(lc->cvec,sizeof(char*)*(lc->len+1));
+    lc->cvec[lc->len++] = copy;
+}
+
+/* =========================== Line editing ================================= */
 
 /* Rewrite the currently edited line accordingly to the buffer content,
  * cursor position, and number of columns of the terminal. */
@@ -245,86 +334,33 @@ static void refreshLine(struct linenoiseState *l) {
     refreshLineRaw(l->fd, l->prompt, l->buf, l->len, l->pos, l->cols);
 }
 
-/* Beep, used for completion when there is nothing to complete or when all
- * the choices were already shown. */
-static void beep() {
-    fprintf(stderr, "\x7");
-    fflush(stderr);
-}
-
-/* Free a list of completion option populated by linenoiseAddCompletion(). */
-static void freeCompletions(linenoiseCompletions *lc) {
-    size_t i;
-    for (i = 0; i < lc->len; i++)
-        free(lc->cvec[i]);
-    if (lc->cvec != NULL)
-        free(lc->cvec);
-}
-
-/* This is an helper function for linenoiseEdit() and is called when the
- * user types the <tab> key in order to complete the string currently in the
- * input.
- * 
- * The state of the editing is encapsulated into the pointed linenoiseState
- * structure as described in the structure definition. */
-static int completeLine(struct linenoiseState *ls) {
-    linenoiseCompletions lc = { 0, NULL };
-    int nread, nwritten;
-    char c = 0;
-
-    completionCallback(ls->buf,&lc);
-    if (lc.len == 0) {
-        beep();
-    } else {
-        size_t stop = 0, i = 0;
-        size_t clen;
-
-        while(!stop) {
-            /* Show completion or original buffer */
-            if (i < lc.len) {
-                clen = strlen(lc.cvec[i]);
-                refreshLineRaw(ls->fd,ls->prompt,lc.cvec[i],clen,clen,ls->cols);
+/* Insert the character 'c' at cursor current position.
+ *
+ * On error writing to the terminal -1 is returned, otherwise 0. */
+int linenoiseEditInsert(struct linenoiseState *l, int c) {
+    if (l->len < l->buflen) {
+        if (l->len == l->pos) {
+            l->buf[l->pos] = c;
+            l->pos++;
+            l->len++;
+            l->buf[l->len] = '\0';
+            if (l->plen+l->len < l->cols) {
+                /* Avoid a full update of the line in the
+                 * trivial case. */
+                if (write(l->fd,&c,1) == -1) return -1;
             } else {
-                refreshLine(ls);
+                refreshLine(l);
             }
-
-            nread = read(ls->fd,&c,1);
-            if (nread <= 0) {
-                freeCompletions(&lc);
-                return -1;
-            }
-
-            switch(c) {
-                case 9: /* tab */
-                    i = (i+1) % (lc.len+1);
-                    if (i == lc.len) beep();
-                    break;
-                case 27: /* escape */
-                    /* Re-show original buffer */
-                    if (i < lc.len) refreshLine(ls);
-                    stop = 1;
-                    break;
-                default:
-                    /* Update buffer and return */
-                    if (i < lc.len) {
-                        nwritten = snprintf(ls->buf,ls->buflen,"%s",lc.cvec[i]);
-                        ls->len = ls->pos = nwritten;
-                    }
-                    stop = 1;
-                    break;
-            }
+        } else {
+            memmove(l->buf+l->pos+1,l->buf+l->pos,l->len-l->pos);
+            l->buf[l->pos] = c;
+            l->len++;
+            l->pos++;
+            l->buf[l->len] = '\0';
+            refreshLine(l);
         }
     }
-
-    freeCompletions(&lc);
-    return c; /* Return last read character */
-}
-
-/* Clear the screen. Used to handle ctrl+l */
-void linenoiseClearScreen(void) {
-    if (write(STDIN_FILENO,"\x1b[H\x1b[2J",7) <= 0) {
-        /* nothing to do, just to avoid warning. */
-    }
+    return 0;
 }
 
 /* This function is the core of the line editing capability of linenoise.
@@ -484,28 +520,7 @@ up_down_arrow:
             }
             break;
         default:
-            if (l.len < buflen) {
-                if (l.len == l.pos) {
-                    buf[l.pos] = c;
-                    l.pos++;
-                    l.len++;
-                    buf[l.len] = '\0';
-                    if (l.plen+l.len < l.cols) {
-                        /* Avoid a full update of the line in the
-                         * trivial case. */
-                        if (write(fd,&c,1) == -1) return -1;
-                    } else {
-                        refreshLine(&l);
-                    }
-                } else {
-                    memmove(buf+l.pos+1,buf+l.pos,l.len-l.pos);
-                    buf[l.pos] = c;
-                    l.len++;
-                    l.pos++;
-                    buf[l.len] = '\0';
-                    refreshLine(&l);
-                }
-            }
+            if (linenoiseEditInsert(&l,c)) return -1;
             break;
         case 21: /* Ctrl+u, delete the whole line. */
             buf[0] = '\0';
@@ -599,21 +614,24 @@ char *linenoise(const char *prompt) {
     }
 }
 
-/* Register a callback function to be called for tab-completion. */
-void linenoiseSetCompletionCallback(linenoiseCompletionCallback *fn) {
-    completionCallback = fn;
+/* ================================ History ================================= */
+
+/* Free the history, but does not reset it. Only used when we have to
+ * exit() to avoid memory leaks are reported by valgrind & co. */
+static void freeHistory(void) {
+    if (history) {
+        int j;
+
+        for (j = 0; j < history_len; j++)
+            free(history[j]);
+        free(history);
+    }
 }
 
-/* This function is used by the callback function registered by the user
- * in order to add completion options given the input string when the
- * user typed <tab>. See the example.c source code for a very easy to
- * understand example. */
-void linenoiseAddCompletion(linenoiseCompletions *lc, char *str) {
-    size_t len = strlen(str);
-    char *copy = malloc(len+1);
-    memcpy(copy,str,len+1);
-    lc->cvec = realloc(lc->cvec,sizeof(char*)*(lc->len+1));
-    lc->cvec[lc->len++] = copy;
+/* At exit we'll try to fix the terminal to the initial conditions. */
+static void linenoiseAtExit(void) {
+    disableRawMode(STDIN_FILENO);
+    freeHistory();
 }
 
 /* Using a circular buffer is smarter, but a bit more complex to handle. */
