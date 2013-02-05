@@ -363,6 +363,48 @@ int linenoiseEditInsert(struct linenoiseState *l, int c) {
     return 0;
 }
 
+/* Move cursor on the left. */
+void linenoiseEditMoveLeft(struct linenoiseState *l) {
+    if (l->pos > 0) {
+        l->pos--;
+        refreshLine(l);
+    }
+}
+
+/* Move cursor on the right. */
+void linenoiseEditMoveRight(struct linenoiseState *l) {
+    if (l->pos != l->len) {
+        l->pos++;
+        refreshLine(l);
+    }
+}
+
+/* Substitute the currently edited line with the next or previous history
+ * entry as specified by 'dir'. */
+#define LINENOISE_HISTORY_NEXT 0
+#define LINENOISE_HISTORY_PREV 1
+void linenoiseEditHistoryNext(struct linenoiseState *l, int dir) {
+    if (history_len > 1) {
+        /* Update the current history entry before to
+         * overwrite it with the next one. */
+        free(history[history_len - 1 - l->history_index]);
+        history[history_len - 1 - l->history_index] = strdup(l->buf);
+        /* Show the new entry */
+        l->history_index += (dir == LINENOISE_HISTORY_PREV) ? 1 : -1;
+        if (l->history_index < 0) {
+            l->history_index = 0;
+            return;
+        } else if (l->history_index >= history_len) {
+            l->history_index = history_len-1;
+            return;
+        }
+        strncpy(l->buf,history[history_len - 1 - l->history_index],l->buflen);
+        l->buf[l->buflen] = '\0';
+        l->len = l->pos = strlen(l->buf);
+        refreshLine(l);
+    }
+}
+
 /* This function is the core of the line editing capability of linenoise.
  * It expects 'fd' to be already in "raw mode" so that every key pressed
  * will be returned ASAP to read().
@@ -457,54 +499,27 @@ static int linenoiseEdit(int fd, char *buf, size_t buflen, const char *prompt)
             }
             break;
         case 2:     /* ctrl-b */
-            goto left_arrow;
+            linenoiseEditMoveLeft(&l);
+            break;
         case 6:     /* ctrl-f */
-            goto right_arrow;
+            linenoiseEditMoveRight(&l);
+            break;
         case 16:    /* ctrl-p */
-            seq[1] = 65;
-            goto up_down_arrow;
+            linenoiseEditHistoryNext(&l, LINENOISE_HISTORY_PREV);
+            break;
         case 14:    /* ctrl-n */
-            seq[1] = 66;
-            goto up_down_arrow;
+            linenoiseEditHistoryNext(&l, LINENOISE_HISTORY_NEXT);
             break;
         case 27:    /* escape sequence */
             if (read(fd,seq,2) == -1) break;
             if (seq[0] == 91 && seq[1] == 68) {
-left_arrow:
-                /* left arrow */
-                if (l.pos > 0) {
-                    l.pos--;
-                    refreshLine(&l);
-                }
+                linenoiseEditMoveLeft(&l);
             } else if (seq[0] == 91 && seq[1] == 67) {
-right_arrow:
-                /* right arrow */
-                if (l.pos != l.len) {
-                    l.pos++;
-                    refreshLine(&l);
-                }
+                linenoiseEditMoveRight(&l);
             } else if (seq[0] == 91 && (seq[1] == 65 || seq[1] == 66)) {
-up_down_arrow:
-                /* up and down arrow: history */
-                if (history_len > 1) {
-                    /* Update the current history entry before to
-                     * overwrite it with tne next one. */
-                    free(history[history_len-1-l.history_index]);
-                    history[history_len-1-l.history_index] = strdup(buf);
-                    /* Show the new entry */
-                    l.history_index += (seq[1] == 65) ? 1 : -1;
-                    if (l.history_index < 0) {
-                        l.history_index = 0;
-                        break;
-                    } else if (l.history_index >= history_len) {
-                        l.history_index = history_len-1;
-                        break;
-                    }
-                    strncpy(buf,history[history_len-1-l.history_index],buflen);
-                    buf[buflen] = '\0';
-                    l.len = l.pos = strlen(buf);
-                    refreshLine(&l);
-                }
+                linenoiseEditHistoryNext(&l,
+                    (seq[1] == 65) ? LINENOISE_HISTORY_PREV :
+                                     LINENOISE_HISTORY_NEXT);
             } else if (seq[0] == 91 && seq[1] > 48 && seq[1] < 55) {
                 /* extended escape */
                 if (read(fd,seq2,2) == -1) break;
