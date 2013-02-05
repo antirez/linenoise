@@ -389,7 +389,21 @@ right_arrow:
                     pos++;
                     refreshLine(fd,prompt,buf,len,pos,cols);
                 }
-            } else if (seq[0] == 91 && (seq[1] == 65 || seq[1] == 66)) {
+            } else if (seq[0] == 79 && seq[1] == 72) {
+                 /* home button */
+                 if (pos > 0) {
+                     pos = 0;
+                     refreshLine(fd,prompt,buf,len,pos,cols);
+                 }
+             } else if (seq[0] == 79 && seq[1] == 70) {
+                 /* end button */
+                 if (pos != len) {
+                     pos = len;
+                     refreshLine(fd,prompt,buf,len,pos,cols);
+                 }
+             }
+
+             else if (seq[0] == 91 && (seq[1] == 65 || seq[1] == 66)) {
 up_down_arrow:
                 /* up and down arrow: history */
                 if (history_len > 1) {
@@ -557,6 +571,12 @@ int linenoiseHistoryAdd(const char *line) {
         if (history == NULL) return 0;
         memset(history,0,(sizeof(char*)*history_max_len));
     }
+    //do not insert duplicate lines into history
+    
+    if (history_len > 0 && !strcmp(line, history[history_len - 1])) {
+		return 0;
+	}
+	
     linecopy = strdup(line);
     if (!linecopy) return 0;
     if (history_len == history_max_len) {
