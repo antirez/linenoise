@@ -42,6 +42,9 @@ Please test it everywhere you can and report back!
 
 ## Let's push this forward!
 
-Please fork it and add something interesting and send me a pull request. What's especially interesting are fixes, new key bindings, completion.
+Please fork it and add something interesting and send me a pull request. What's especially interesting are fixes, new key bindings, better completion.
+
+Patches should be provided in the respect of linenoise sensibility for small
+easy to understand code.
 
 Send feedbacks to antirez at gmail
