@@ -261,7 +261,7 @@ static void freeCompletions(linenoiseCompletions *lc) {
         free(lc->cvec);
 }
 
-/* This is an helper function for linenoisePrompt() and is called when the
+/* This is an helper function for linenoiseEdit() and is called when the
  * user types the <tab> key in order to complete the string currently in the
  * input.
  * 
@@ -335,7 +335,7 @@ void linenoiseClearScreen(void) {
  * when ctrl+d is typed.
  *
  * The function returns the length of the current buffer. */
-static int linenoisePrompt(int fd, char *buf, size_t buflen, const char *prompt)
+static int linenoiseEdit(int fd, char *buf, size_t buflen, const char *prompt)
 {
     struct linenoiseState l;
 
@@ -545,7 +545,7 @@ up_down_arrow:
     return l.len;
 }
 
-/* This function calls the line editing function linenoisePrompt() using
+/* This function calls the line editing function linenoiseEdit() using
  * the STDIN file descriptor set in raw mode. */
 static int linenoiseRaw(char *buf, size_t buflen, const char *prompt) {
     int fd = STDIN_FILENO;
@@ -564,7 +564,7 @@ static int linenoiseRaw(char *buf, size_t buflen, const char *prompt) {
         }
     } else {
         if (enableRawMode(fd) == -1) return -1;
-        count = linenoisePrompt(fd, buf, buflen, prompt);
+        count = linenoiseEdit(fd, buf, buflen, prompt);
         disableRawMode(fd);
         printf("\n");
     }
