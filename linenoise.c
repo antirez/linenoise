@@ -416,6 +416,17 @@ void linenoiseEditDelete(struct linenoiseState *l) {
     }
 }
 
+/* Backspace implementation. */
+void linenoiseEditBackspace(struct linenoiseState *l) {
+    if (l->pos > 0 && l->len > 0) {
+        memmove(l->buf+l->pos-1,l->buf+l->pos,l->len-l->pos);
+        l->pos--;
+        l->len--;
+        l->buf[l->len] = '\0';
+        refreshLine(l);
+    }
+}
+
 /* This function is the core of the line editing capability of linenoise.
  * It expects 'fd' to be already in "raw mode" so that every key pressed
  * will be returned ASAP to read().
@@ -480,13 +491,7 @@ static int linenoiseEdit(int fd, char *buf, size_t buflen, const char *prompt)
             return -1;
         case 127:   /* backspace */
         case 8:     /* ctrl-h */
-            if (l.pos > 0 && l.len > 0) {
-                memmove(buf+l.pos-1,buf+l.pos,l.len - l.pos);
-                l.pos--;
-                l.len--;
-                buf[l.len] = '\0';
-                refreshLine(&l);
-            }
+            linenoiseEditBackspace(&l);
             break;
         case 4:     /* ctrl-d, remove char at right of cursor, or of the
                        line is empty, act as end-of-file. */
