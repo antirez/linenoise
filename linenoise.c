@@ -399,7 +399,7 @@ void linenoiseEditHistoryNext(struct linenoiseState *l, int dir) {
             return;
         }
         strncpy(l->buf,history[history_len - 1 - l->history_index],l->buflen);
-        l->buf[l->buflen] = '\0';
+        l->buf[l->buflen-1] = '\0';
         l->len = l->pos = strlen(l->buf);
         refreshLine(l);
     }
