@@ -503,7 +503,7 @@ static int linenoiseEdit(int fd, char *buf, size_t buflen, const char *prompt)
                 return -1;
             }
             break;
-        case 20:    /* ctrl-t */
+        case 20:    /* ctrl-t, swaps current character with previous. */
             if (l.pos > 0 && l.pos < l.len) {
                 int aux = buf[l.pos-1];
                 buf[l.pos-1] = buf[l.pos];
