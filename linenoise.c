@@ -427,6 +427,22 @@ void linenoiseEditBackspace(struct linenoiseState *l) {
     }
 }
 
+/* Delete the previosu word, maintaining the cursor at the start of the
+ * current word. */
+void linenoiseEditDeletePrevWord(struct linenoiseState *l) {
+    size_t old_pos = l->pos;
+    size_t diff;
+
+    while (l->pos > 0 && l->buf[l->pos-1] == ' ')
+        l->pos--;
+    while (l->pos > 0 && l->buf[l->pos-1] != ' ')
+        l->pos--;
+    diff = old_pos - l->pos;
+    memmove(l->buf+l->pos,l->buf+old_pos,l->len-old_pos+1);
+    l->len -= diff;
+    refreshLine(l);
+}
+
 /* This function is the core of the line editing capability of linenoise.
  * It expects 'fd' to be already in "raw mode" so that every key pressed
  * will be returned ASAP to read().
@@ -450,8 +466,6 @@ static int linenoiseEdit(int fd, char *buf, size_t buflen, const char *prompt)
     l.len = 0;
     l.cols = getColumns();
     l.history_index = 0;
-    size_t old_pos;
-    size_t diff;
 
     /* Buffer starts empty. */
     buf[0] = '\0';
@@ -568,15 +582,7 @@ static int linenoiseEdit(int fd, char *buf, size_t buflen, const char *prompt)
             refreshLine(&l);
             break;
         case 23: /* ctrl+w, delete previous word */
-            old_pos = l.pos;
-            while (l.pos > 0 && buf[l.pos-1] == ' ')
-                l.pos--;
-            while (l.pos > 0 && buf[l.pos-1] != ' ')
-                l.pos--;
-            diff = old_pos - l.pos;
-            memmove(&buf[l.pos], &buf[old_pos], l.len-old_pos+1);
-            l.len -= diff;
-            refreshLine(&l);
+            linenoiseEditDeletePrevWord(&l);
             break;
         }
     }
