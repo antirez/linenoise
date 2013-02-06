@@ -405,6 +405,17 @@ void linenoiseEditHistoryNext(struct linenoiseState *l, int dir) {
     }
 }
 
+/* Delete the character at the right of the cursor without altering the cursor
+ * position. Basically this is what happens with the "Delete" keyboard key. */
+void linenoiseEditDelete(struct linenoiseState *l) {
+    if (l->len > 0 && l->pos < l->len) {
+        memmove(l->buf+l->pos,l->buf+l->pos+1,l->len-l->pos-1);
+        l->len--;
+        l->buf[l->len] = '\0';
+        refreshLine(l);
+    }
+}
+
 /* This function is the core of the line editing capability of linenoise.
  * It expects 'fd' to be already in "raw mode" so that every key pressed
  * will be returned ASAP to read().
@@ -477,13 +488,11 @@ static int linenoiseEdit(int fd, char *buf, size_t buflen, const char *prompt)
                 refreshLine(&l);
             }
             break;
-        case 4:     /* ctrl-d, remove char at right of cursor */
-            if (l.len > 1 && l.pos < (l.len-1)) {
-                memmove(buf+l.pos,buf+l.pos+1,l.len - l.pos);
-                l.len--;
-                buf[l.len] = '\0';
-                refreshLine(&l);
-            } else if (l.len == 0) {
+        case 4:     /* ctrl-d, remove char at right of cursor, or of the
+                       line is empty, act as end-of-file. */
+            if (l.len > 0) {
+                linenoiseEditDelete(&l);
+            } else {
                 history_len--;
                 free(history[history_len]);
                 return -1;
@@ -524,13 +533,7 @@ static int linenoiseEdit(int fd, char *buf, size_t buflen, const char *prompt)
                 /* extended escape */
                 if (read(fd,seq2,2) == -1) break;
                 if (seq[1] == 51 && seq2[0] == 126) {
-                    /* delete */
-                    if (l.len > 0 && l.pos < l.len) {
-                        memmove(buf+l.pos,buf+l.pos+1,l.len-l.pos-1);
-                        l.len--;
-                        buf[l.len] = '\0';
-                        refreshLine(&l);
-                    }
+                    linenoiseEditDelete(&l);
                 }
             }
             break;
