@@ -13,10 +13,18 @@ void completion(const char *buf, linenoiseCompletions *lc) {
 
 int main(int argc, char **argv) {
     char *line;
+    char *prgname = argv[0];
 
-    if (argc > 1 && !strcmp(argv[1],"--multiline")) {
-        linenoiseSetMultiLine(1);
-        printf("Using multi-line mode.\n");
+    while(argc > 1) {
+        argc--;
+        argv++;
+        if (!strcmp(*argv,"--multiline")) {
+            linenoiseSetMultiLine(1);
+            printf("Multi-line mode enabled.\n");
+        } else {
+            fprintf(stderr, "Usage: %s [--multiline]\n", prgname);
+            exit(1);
+        }
     }
 
     linenoiseSetCompletionCallback(completion);
