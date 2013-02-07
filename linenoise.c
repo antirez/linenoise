@@ -406,7 +406,6 @@ static void refreshMultiLine(struct linenoiseState *l) {
     /* If we are at the very end of the screen with our prompt, we need to
      * emit a newline and move the prompt to the first column. */
     if (l->pos &&
-        l->pos > l->oldpos &&
         l->pos == l->len &&
         (l->pos+plen) % l->cols == 0)
     {
