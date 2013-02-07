@@ -258,9 +258,11 @@ static int completeLine(struct linenoiseState *ls) {
                 struct linenoiseState saved = *ls;
 
                 ls->len = ls->pos = strlen(lc.cvec[i]);
+                ls->buf = lc.cvec[i];
                 refreshLine(ls);
                 ls->len = saved.len;
                 ls->pos = saved.pos;
+                ls->buf = saved.buf;
             } else {
                 refreshLine(ls);
             }
