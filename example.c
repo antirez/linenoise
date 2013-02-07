@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "linenoise.h"
 
 
@@ -10,8 +11,13 @@ void completion(const char *buf, linenoiseCompletions *lc) {
     }
 }
 
-int main(void) {
+int main(int argc, char **argv) {
     char *line;
+
+    if (argc > 1 && !strcmp(argv[1],"--multiline")) {
+        linenoiseSetMultiLine(1);
+        printf("Using multi-line mode.\n");
+    }
 
     linenoiseSetCompletionCallback(completion);
     linenoiseHistoryLoad("history.txt"); /* Load the history at startup */

@@ -45,7 +45,6 @@
  * - http://www.3waylabs.com/nw/WWW/products/wizcon/vt220.html
  *
  * Todo list:
- * - Switch to gets() if $TERM is something we can't support.
  * - Filter bogus Ctrl+<char> combinations.
  * - Win32 support
  *
@@ -70,6 +69,17 @@
  * CUF (CUrsor Forward)
  *    Sequence: ESC [ n C
  *    Effect: moves cursor forward of n chars
+ *
+ * When multi line mode is enabled, we also use an additional escape
+ * sequence. However multi line editing is disabled by default.
+ *
+ * CUU (Cursor Up)
+ *    Sequence: ESC [ n A
+ *    Effect: moves cursor up of n chars.
+ *
+ * CUD (Cursor Down)
+ *    Sequence: ESC [ n B
+ *    Effect: moves cursor down of n chars.
  *
  * The following are used to clear the screen: ESC [ H ESC [ 2 J
  * This is actually composed of two sequences:
@@ -101,9 +111,10 @@
 static char *unsupported_term[] = {"dumb","cons25",NULL};
 static linenoiseCompletionCallback *completionCallback = NULL;
 
-static struct termios orig_termios; /* in order to restore at exit */
-static int rawmode = 0; /* for atexit() function to check if restore is needed*/
-static int atexit_registered = 0; /* register atexit just 1 time */
+static struct termios orig_termios; /* In order to restore at exit.*/
+static int rawmode = 0; /* For atexit() function to check if restore is needed*/
+static int mlmode = 0;  /* Multi line mode. Default is single line. */
+static int atexit_registered = 0; /* Register atexit just 1 time. */
 static int history_max_len = LINENOISE_DEFAULT_HISTORY_MAX_LEN;
 static int history_len = 0;
 char **history = NULL;
@@ -118,18 +129,23 @@ struct linenoiseState {
     const char *prompt; /* Prompt to display. */
     size_t plen;        /* Prompt length. */
     size_t pos;         /* Current cursor position. */
+    size_t oldpos;      /* Previous refresh cursor position. */
     size_t len;         /* Current edited line length. */
     size_t cols;        /* Number of columns in terminal. */
+    size_t maxrows;     /* Maximum num of rows used so far (multiline mode) */
     int history_index;  /* The history index we are currently editing. */
 };
 
 static void linenoiseAtExit(void);
 int linenoiseHistoryAdd(const char *line);
 static void refreshLine(struct linenoiseState *l);
-static void refreshLineRaw(int fd, const char *prompt, char *buf, size_t len,
-                           size_t pos, size_t cols);
 
 /* ======================= Low level terminal handling ====================== */
+
+/* Set if to use or not the multi line mode. */
+void linenoiseSetMultiLine(int ml) {
+    mlmode = ml;
+}
 
 /* Return true if the terminal name is in the list of terminals we know are
  * not able to understand basic escape sequences. */
@@ -235,13 +251,16 @@ static int completeLine(struct linenoiseState *ls) {
         linenoiseBeep();
     } else {
         size_t stop = 0, i = 0;
-        size_t clen;
 
         while(!stop) {
             /* Show completion or original buffer */
             if (i < lc.len) {
-                clen = strlen(lc.cvec[i]);
-                refreshLineRaw(ls->fd,ls->prompt,lc.cvec[i],clen,clen,ls->cols);
+                struct linenoiseState saved = *ls;
+
+                ls->len = ls->pos = strlen(lc.cvec[i]);
+                refreshLine(ls);
+                ls->len = saved.len;
+                ls->pos = saved.pos;
             } else {
                 refreshLine(ls);
             }
@@ -297,20 +316,24 @@ void linenoiseAddCompletion(linenoiseCompletions *lc, char *str) {
 
 /* =========================== Line editing ================================= */
 
-/* Rewrite the currently edited line accordingly to the buffer content,
+/* Single line low level line refresh.
+ *
+ * Rewrite the currently edited line accordingly to the buffer content,
  * cursor position, and number of columns of the terminal. */
-static void refreshLineRaw(int fd, const char *prompt, char *buf, size_t len,
-                           size_t pos, size_t cols)
-{
+static void refreshSingleLine(struct linenoiseState *l) {
     char seq[64];
-    size_t plen = strlen(prompt);
+    size_t plen = strlen(l->prompt);
+    int fd = l->fd;
+    char *buf = l->buf;
+    size_t len = l->len;
+    size_t pos = l->pos;
     
-    while((plen+pos) >= cols) {
+    while((plen+pos) >= l->cols) {
         buf++;
         len--;
         pos--;
     }
-    while (plen+len > cols) {
+    while (plen+len > l->cols) {
         len--;
     }
 
@@ -318,7 +341,7 @@ static void refreshLineRaw(int fd, const char *prompt, char *buf, size_t len,
     snprintf(seq,64,"\x1b[0G");
     if (write(fd,seq,strlen(seq)) == -1) return;
     /* Write the prompt and the current buffer content */
-    if (write(fd,prompt,strlen(prompt)) == -1) return;
+    if (write(fd,l->prompt,strlen(l->prompt)) == -1) return;
     if (write(fd,buf,len) == -1) return;
     /* Erase to right */
     snprintf(seq,64,"\x1b[0K");
@@ -328,10 +351,110 @@ static void refreshLineRaw(int fd, const char *prompt, char *buf, size_t len,
     if (write(fd,seq,strlen(seq)) == -1) return;
 }
 
-/* A wrapper for refreshLineRaw() that take a state struct instead of the
- * single arguments. */
+/* Multi line low level line refresh.
+ *
+ * Rewrite the currently edited line accordingly to the buffer content,
+ * cursor position, and number of columns of the terminal. */
+static void refreshMultiLine(struct linenoiseState *l) {
+    char seq[64];
+    int plen = strlen(l->prompt);
+    int rows = (plen+l->len+l->cols-1)/l->cols; /* rows used by current buf. */
+    int rpos = (plen+l->oldpos+l->cols)/l->cols; /* cursor relative row. */
+    int rpos2; /* rpos after refresh. */
+    int old_rows = l->maxrows;
+    int fd = l->fd, j;
+
+    /* Update maxrows if needed. */
+    if (rows > (int)l->maxrows) l->maxrows = rows;
+
+#ifdef LN_DEBUG
+    FILE *fp = fopen("/tmp/debug.txt","a");
+    fprintf(fp,"[%d %d %d] p: %d, rows: %d, rpos: %d, max: %d, oldmax: %d",
+        (int)l->len,(int)l->pos,(int)l->oldpos,plen,rows,rpos,(int)l->maxrows,old_rows);
+#endif
+
+    /* First step: clear all the lines used before. To do so start by
+     * going to the last row. */
+    if (old_rows-rpos > 0) {
+#ifdef LN_DEBUG
+        fprintf(fp,", go down %d", old_rows-rpos);
+#endif
+        snprintf(seq,64,"\x1b[%dB", old_rows-rpos);
+        if (write(fd,seq,strlen(seq)) == -1) return;
+    }
+
+    /* Now for every row clear it, go up. */
+    for (j = 0; j < old_rows-1; j++) {
+#ifdef LN_DEBUG
+        fprintf(fp,", clear+up");
+#endif
+        snprintf(seq,64,"\x1b[0G\x1b[0K\x1b[1A");
+        if (write(fd,seq,strlen(seq)) == -1) return;
+    }
+
+    /* Clean the top line. */
+#ifdef LN_DEBUG
+    fprintf(fp,", clear");
+#endif
+    snprintf(seq,64,"\x1b[0G\x1b[0K");
+    if (write(fd,seq,strlen(seq)) == -1) return;
+    
+    /* Write the prompt and the current buffer content */
+    if (write(fd,l->prompt,strlen(l->prompt)) == -1) return;
+    if (write(fd,l->buf,l->len) == -1) return;
+
+    /* If we are at the very end of the screen with our prompt, we need to
+     * emit a newline and move the prompt to the first column. */
+    if (l->pos &&
+        l->pos > l->oldpos &&
+        l->pos == l->len &&
+        (l->pos+plen) % l->cols == 0)
+    {
+#ifdef LN_DEBUG
+        fprintf(fp,", <newline>");
+#endif
+        if (write(fd,"\n",1) == -1) return;
+        snprintf(seq,64,"\x1b[0G");
+        if (write(fd,seq,strlen(seq)) == -1) return;
+        rows++;
+        if (rows > (int)l->maxrows) l->maxrows = rows;
+    }
+
+    /* Move cursor to right position. */
+    rpos2 = (plen+l->pos+l->cols)/l->cols; /* current cursor relative row. */
+#ifdef LN_DEBUG
+    fprintf(fp,", rpos2 %d", rpos2);
+#endif
+    /* Go up till we reach the expected positon. */
+    if (rows-rpos2 > 0) {
+#ifdef LN_DEBUG
+        fprintf(fp,", go-up %d", rows-rpos2);
+#endif
+        snprintf(seq,64,"\x1b[%dA", rows-rpos2);
+        if (write(fd,seq,strlen(seq)) == -1) return;
+    }
+    /* Set column. */
+#ifdef LN_DEBUG
+    fprintf(fp,", set col %d", 1+((plen+(int)l->pos) % (int)l->cols));
+#endif
+    snprintf(seq,64,"\x1b[%dG", 1+((plen+(int)l->pos) % (int)l->cols));
+    if (write(fd,seq,strlen(seq)) == -1) return;
+
+    l->oldpos = l->pos;
+
+#ifdef LN_DEBUG
+    fprintf(fp,"\n");
+    fclose(fp);
+#endif
+}
+
+/* Calls the two low level functions refreshSingleLine() or
+ * refreshMultiLine() according to the selected mode. */
 static void refreshLine(struct linenoiseState *l) {
-    refreshLineRaw(l->fd, l->prompt, l->buf, l->len, l->pos, l->cols);
+    if (mlmode)
+        refreshMultiLine(l);
+    else
+        refreshSingleLine(l);
 }
 
 /* Insert the character 'c' at cursor current position.
@@ -344,7 +467,7 @@ int linenoiseEditInsert(struct linenoiseState *l, int c) {
             l->pos++;
             l->len++;
             l->buf[l->len] = '\0';
-            if (l->plen+l->len < l->cols) {
+            if ((!mlmode && l->plen+l->len < l->cols) /* || mlmode */) {
                 /* Avoid a full update of the line in the
                  * trivial case. */
                 if (write(l->fd,&c,1) == -1) return -1;
@@ -462,9 +585,10 @@ static int linenoiseEdit(int fd, char *buf, size_t buflen, const char *prompt)
     l.buflen = buflen;
     l.prompt = prompt;
     l.plen = strlen(prompt);
-    l.pos = 0;
+    l.oldpos = l.pos = 0;
     l.len = 0;
     l.cols = getColumns();
+    l.maxrows = 0;
     l.history_index = 0;
 
     /* Buffer starts empty. */
