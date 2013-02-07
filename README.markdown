@@ -1,10 +1,13 @@
 # Linenoise
 
-A minimal, zero-config, BSD licensed, readline replacement.
+A minimal, zero-config, BSD licensed, readline replacement used in Redis,
+MongoDB, and Android.
 
-News: linenoise now includes minimal completion support, thanks to Pieter Noordhuis (@pnoordhuis).
-
-News: linenoise is now part of [Android](http://android.git.kernel.org/?p=platform/system/core.git;a=tree;f=liblinenoise;h=56450eaed7f783760e5e6a5993ef75cde2e29dea;hb=HEAD Android)!
+* Single line editing mode with the usual key bindings implemented.
+* Experimental multi-line editing mode.
+* History handling.
+* Completion.
+* Under 1000k of BSD license source code.
 
 ## Can a line editing library be 20k lines of code?
 
@@ -41,8 +44,6 @@ The library is currently less than 400 lines of code. In order to use it in your
 Please test it everywhere you can and report back!
 
 ## Let's push this forward!
-
-Please fork it and add something interesting and send me a pull request. What's especially interesting are fixes, new key bindings, better completion.
 
 Patches should be provided in the respect of linenoise sensibility for small
 easy to understand code.
