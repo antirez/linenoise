@@ -35,6 +35,7 @@ The library is currently less than 1000 lines of code. In order to use it in you
  * Linux text only console ($TERM = linux)
  * Linux KDE terminal application ($TERM = xterm)
  * Linux xterm ($TERM = xterm)
+ * Linux Buildroot ($TERM = vt100)
  * Mac OS X iTerm ($TERM = xterm)
  * Mac OS X default Terminal.app ($TERM = xterm)
  * OpenBSD 4.5 through an OSX Terminal.app ($TERM = screen)
