@@ -206,7 +206,7 @@ static void disableRawMode(int fd) {
 static int getColumns(void) {
     struct winsize ws;
 
-    if (ioctl(1, TIOCGWINSZ, &ws) == -1) return 80;
+    if (ioctl(1, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0) return 80;
     return ws.ws_col;
 }
 
