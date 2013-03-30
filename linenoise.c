@@ -134,6 +134,18 @@ struct linenoiseState {
     size_t cols;        /* Number of columns in terminal. */
     size_t maxrows;     /* Maximum num of rows used so far (multiline mode) */
     int history_index;  /* The history index we are currently editing. */
+    char seq[2];        /* State memory for escape sequences */
+    char seq2[2];       /* Extended escape sequences */
+    linenoiseCompletions    completions;    /* Suggestions when in completion mode */
+    size_t comp_i;      /* Current completion suggestion index */
+    enum {
+        ST_START,
+        ST_COMPLETION,
+        ST_ESC_SEQ_0,
+        ST_ESC_SEQ_1,
+        ST_ESC_SEQ2_0,
+        ST_ESC_SEQ2_1,
+    } state;            /* Input handling states */
 };
 
 static void linenoiseAtExit(void);
@@ -235,68 +247,96 @@ static void freeCompletions(linenoiseCompletions *lc) {
         free(lc->cvec);
 }
 
+static void completeLineShow(struct linenoiseState *ls);
+
 /* This is an helper function for linenoiseEdit() and is called when the
- * user types the <tab> key in order to complete the string currently in the
- * input.
+ * user types the <tab> key in order to begin the process of completing
+ * the string currently in the input.
  * 
  * The state of the editing is encapsulated into the pointed linenoiseState
- * structure as described in the structure definition. */
-static int completeLine(struct linenoiseState *ls) {
-    linenoiseCompletions lc = { 0, NULL };
-    int nread, nwritten;
-    char c = 0;
+ * structure as described in the structure definition.
+ *
+ * Returns 0 when the completion mode should actually begin, 1 otherwise. */
+static int completeLineStart(struct linenoiseState *ls) {
+    linenoiseCompletions *comps = &ls->completions;
 
-    completionCallback(ls->buf,&lc);
-    if (lc.len == 0) {
+    comps->len = 0;
+    comps->cvec = NULL;
+
+    completionCallback(ls->buf,comps);
+
+    /* Empty line, nothing to complete! */
+    if (comps->len == 0) {
         linenoiseBeep();
-    } else {
-        size_t stop = 0, i = 0;
 
-        while(!stop) {
-            /* Show completion or original buffer */
-            if (i < lc.len) {
-                struct linenoiseState saved = *ls;
-
-                ls->len = ls->pos = strlen(lc.cvec[i]);
-                ls->buf = lc.cvec[i];
-                refreshLine(ls);
-                ls->len = saved.len;
-                ls->pos = saved.pos;
-                ls->buf = saved.buf;
-            } else {
-                refreshLine(ls);
-            }
-
-            nread = read(ls->fd,&c,1);
-            if (nread <= 0) {
-                freeCompletions(&lc);
-                return -1;
-            }
-
-            switch(c) {
-                case 9: /* tab */
-                    i = (i+1) % (lc.len+1);
-                    if (i == lc.len) linenoiseBeep();
-                    break;
-                case 27: /* escape */
-                    /* Re-show original buffer */
-                    if (i < lc.len) refreshLine(ls);
-                    stop = 1;
-                    break;
-                default:
-                    /* Update buffer and return */
-                    if (i < lc.len) {
-                        nwritten = snprintf(ls->buf,ls->buflen,"%s",lc.cvec[i]);
-                        ls->len = ls->pos = nwritten;
-                    }
-                    stop = 1;
-                    break;
-            }
-        }
+        freeCompletions(comps);
+        return 1;
     }
 
-    freeCompletions(&lc);
-    return c; /* Return last read character */
+    ls->comp_i = 0;
+
+    /* Show first completion suggestion */
+    completeLineShow(ls);
+
+    return 0;
+}
+
+/* Update the prompt with the current completion suggestion */
+static void completeLineShow(struct linenoiseState *ls) {
+    linenoiseCompletions *comps = &ls->completions;
+
+    /* Show completion or original buffer */
+    if (ls->comp_i < comps->len) {
+        struct linenoiseState saved = *ls;
+
+        ls->buf = comps->cvec[ls->comp_i];
+        ls->len = ls->pos = strlen(ls->buf);
+        refreshLine(ls);
+        ls->len = saved.len;
+        ls->pos = saved.pos;
+        ls->buf = saved.buf;
+    } else {
+        refreshLine(ls);
+    }
+}
+
+/* Handles a single character input for the purposes of completing.
+ *
+ * Returns 0 when completion is still ongoing, and 1 when the process
+ * is finished */
+static int completeLineHandle(struct linenoiseState *ls, char c) {
+    linenoiseCompletions *comps = &ls->completions;
+    int stop = 0;
+
+    switch(c) {
+    case 9: /* tab */
+        ls->comp_i = (ls->comp_i+1) % (comps->len+1);
+        if (ls->comp_i == comps->len) linenoiseBeep();
+        break;
+    case 27: /* escape */
+        /* Re-show original buffer */
+        if (ls->comp_i < comps->len) refreshLine(ls);
+        stop = 1;
+        break;
+    default:
+        /* Update buffer and return */
+        if (ls->comp_i < comps->len) {
+            int nwritten = snprintf(ls->buf,ls->buflen,"%s",comps->cvec[ls->comp_i]);
+            ls->len = ls->pos = nwritten;
+        }
+        stop = 1;
+        break;
+    }
+
+    if (stop) {
+        freeCompletions(comps);
+    }
+    else {
+        /* Show current suggestion if still completing */
+        completeLineShow(ls);
+    }
+
+    return stop;
 }
 
 /* Register a callback function to be called for tab-completion. */
@@ -591,6 +631,7 @@ static int linenoiseEdit(int fd, char *buf, size_t buflen, const char *prompt)
     l.cols = getColumns();
     l.maxrows = 0;
     l.history_index = 0;
+    l.state = ST_START;
 
     /* Buffer starts empty. */
     buf[0] = '\0';
@@ -604,116 +645,166 @@ static int linenoiseEdit(int fd, char *buf, size_t buflen, const char *prompt)
     while(1) {
         char c;
         int nread;
-        char seq[2], seq2[2];
+        int rc;
 
         nread = read(fd,&c,1);
         if (nread <= 0) return l.len;
 
-        /* Only autocomplete when the callback is set. It returns < 0 when
-         * there was an error reading from fd. Otherwise it will return the
-         * character that should be handled next. */
-        if (c == 9 && completionCallback != NULL) {
-            c = completeLine(&l);
-            /* Return on errors */
-            if (c < 0) return l.len;
-            /* Read next character when 0 */
-            if (c == 0) continue;
-        }
+        /* Typically we process each input only once, but in the case of
+         * completion mode we'll run through this inner while(1) twice. */
+        while(1) {
+            switch(l.state) {
+            case ST_START:
+                switch(c) {
+                case 9:     /* tab */
+                    /* Only autocomplete if the callback is set */
+                    if (completionCallback != NULL) {
+                        rc = completeLineStart(&l);
 
-        switch(c) {
-        case 13:    /* enter */
-            history_len--;
-            free(history[history_len]);
-            return (int)l.len;
-        case 3:     /* ctrl-c */
-            errno = EAGAIN;
-            return -1;
-        case 127:   /* backspace */
-        case 8:     /* ctrl-h */
-            linenoiseEditBackspace(&l);
-            break;
-        case 4:     /* ctrl-d, remove char at right of cursor, or of the
-                       line is empty, act as end-of-file. */
-            if (l.len > 0) {
-                linenoiseEditDelete(&l);
-            } else {
-                history_len--;
-                free(history[history_len]);
-                return -1;
-            }
-            break;
-        case 20:    /* ctrl-t, swaps current character with previous. */
-            if (l.pos > 0 && l.pos < l.len) {
-                int aux = buf[l.pos-1];
-                buf[l.pos-1] = buf[l.pos];
-                buf[l.pos] = aux;
-                if (l.pos != l.len-1) l.pos++;
-                refreshLine(&l);
-            }
-            break;
-        case 2:     /* ctrl-b */
-            linenoiseEditMoveLeft(&l);
-            break;
-        case 6:     /* ctrl-f */
-            linenoiseEditMoveRight(&l);
-            break;
-        case 16:    /* ctrl-p */
-            linenoiseEditHistoryNext(&l, LINENOISE_HISTORY_PREV);
-            break;
-        case 14:    /* ctrl-n */
-            linenoiseEditHistoryNext(&l, LINENOISE_HISTORY_NEXT);
-            break;
-        case 27:    /* escape sequence */
-            /* Read the next two bytes representing the escape sequence. */
-            if (read(fd,seq,2) == -1) break;
+                        /* We should transition the state to completion mode! */
+                        if (rc == 0) {
+                            l.state = ST_COMPLETION;
+                        }
+                    }
+                    break;
 
-            if (seq[0] == 91 && seq[1] == 68) {
-                /* Left arrow */
-                linenoiseEditMoveLeft(&l);
-            } else if (seq[0] == 91 && seq[1] == 67) {
-                /* Right arrow */
-                linenoiseEditMoveRight(&l);
-            } else if (seq[0] == 91 && (seq[1] == 65 || seq[1] == 66)) {
-                /* Up and Down arrows */
-                linenoiseEditHistoryNext(&l,
-                    (seq[1] == 65) ? LINENOISE_HISTORY_PREV :
-                                     LINENOISE_HISTORY_NEXT);
-            } else if (seq[0] == 91 && seq[1] > 48 && seq[1] < 55) {
-                /* extended escape, read additional two bytes. */
-                if (read(fd,seq2,2) == -1) break;
-                if (seq[1] == 51 && seq2[0] == 126) {
+                case 13:    /* enter */
+                    history_len--;
+                    free(history[history_len]);
+                    return (int)l.len;
+                case 3:     /* ctrl-c */
+                    errno = EAGAIN;
+                    return -1;
+                case 127:   /* backspace */
+                case 8:     /* ctrl-h */
+                    linenoiseEditBackspace(&l);
+                    break;
+                case 4:     /* ctrl-d, remove char at right of cursor, or of the
+                               line is empty, act as end-of-file. */
+                    if (l.len > 0) {
+                        linenoiseEditDelete(&l);
+                    } else {
+                        history_len--;
+                        free(history[history_len]);
+                        return -1;
+                    }
+                    break;
+                case 20:    /* ctrl-t, swaps current character with previous. */
+                    if (l.pos > 0 && l.pos < l.len) {
+                        int aux = buf[l.pos-1];
+                        buf[l.pos-1] = buf[l.pos];
+                        buf[l.pos] = aux;
+                        if (l.pos != l.len-1) l.pos++;
+                        refreshLine(&l);
+                    }
+                    break;
+                case 2:     /* ctrl-b */
+                    linenoiseEditMoveLeft(&l);
+                    break;
+                case 6:     /* ctrl-f */
+                    linenoiseEditMoveRight(&l);
+                    break;
+                case 16:    /* ctrl-p */
+                    linenoiseEditHistoryNext(&l, LINENOISE_HISTORY_PREV);
+                    break;
+                case 14:    /* ctrl-n */
+                    linenoiseEditHistoryNext(&l, LINENOISE_HISTORY_NEXT);
+                    break;
+                case 27:    /* escape sequence */
+                    /* Prepare to handle the next two bytes as representing the escape sequence. */
+                    l.state = ST_ESC_SEQ_0;
+                    break;
+
+                default:
+                    if (linenoiseEditInsert(&l,c)) return -1;
+                    break;
+                case 21: /* Ctrl+u, delete the whole line. */
+                    buf[0] = '\0';
+                    l.pos = l.len = 0;
+                    refreshLine(&l);
+                    break;
+                case 11: /* Ctrl+k, delete from current to end of line. */
+                    buf[l.pos] = '\0';
+                    l.len = l.pos;
+                    refreshLine(&l);
+                    break;
+                case 1: /* Ctrl+a, go to the start of the line */
+                    l.pos = 0;
+                    refreshLine(&l);
+                    break;
+                case 5: /* ctrl+e, go to the end of the line */
+                    l.pos = l.len;
+                    refreshLine(&l);
+                    break;
+                case 12: /* ctrl+l, clear screen */
+                    linenoiseClearScreen();
+                    refreshLine(&l);
+                    break;
+                case 23: /* ctrl+w, delete previous word */
+                    linenoiseEditDeletePrevWord(&l);
+                    break;
+                }
+                break;
+
+            case ST_COMPLETION:
+                rc = completeLineHandle(&l, c);
+
+                /* Hit stop condition, we're done with completion but this
+                 * input still needs to be processed */
+                if (rc) {
+                    /* Go back to the start to handle this input */
+                    l.state = ST_START;
+                    
+                    /* This 'continue' means we repeat the inner while(1) again */
+                    continue;
+                }
+                break;
+
+            case ST_ESC_SEQ_0:
+                l.seq[0] = c;
+                l.state = ST_ESC_SEQ_1;
+                break;
+
+            case ST_ESC_SEQ_1:
+                l.seq[1] = c;
+                l.state = ST_START;
+
+                if (l.seq[0] == 91 && l.seq[1] == 68) {
+                    /* Left arrow */
+                    linenoiseEditMoveLeft(&l);
+                } else if (l.seq[0] == 91 && l.seq[1] == 67) {
+                    /* Right arrow */
+                    linenoiseEditMoveRight(&l);
+                } else if (l.seq[0] == 91 && (l.seq[1] == 65 || l.seq[1] == 66)) {
+                    /* Up and Down arrows */
+                    linenoiseEditHistoryNext(&l,
+                        (l.seq[1] == 65) ? LINENOISE_HISTORY_PREV :
+                                            LINENOISE_HISTORY_NEXT);
+                } else if (l.seq[0] == 91 && l.seq[1] > 48 && l.seq[1] < 55) {
+                    /* extended escape, will require an additional two bytes to be read */
+                    l.state = ST_ESC_SEQ2_0;
+                }
+                break;
+
+            case ST_ESC_SEQ2_0:
+                l.seq2[0] = c;
+                l.state = ST_ESC_SEQ2_1;
+                break;
+
+            case ST_ESC_SEQ2_1:
+                l.seq2[1] = c;
+                    
+                if (l.seq[1] == 51 && l.seq2[0] == 126) {
                     /* Delete key. */
                     linenoiseEditDelete(&l);
                 }
+
+                l.state = ST_START;
+                break;
             }
-            break;
-        default:
-            if (linenoiseEditInsert(&l,c)) return -1;
-            break;
-        case 21: /* Ctrl+u, delete the whole line. */
-            buf[0] = '\0';
-            l.pos = l.len = 0;
-            refreshLine(&l);
-            break;
-        case 11: /* Ctrl+k, delete from current to end of line. */
-            buf[l.pos] = '\0';
-            l.len = l.pos;
-            refreshLine(&l);
-            break;
-        case 1: /* Ctrl+a, go to the start of the line */
-            l.pos = 0;
-            refreshLine(&l);
-            break;
-        case 5: /* ctrl+e, go to the end of the line */
-            l.pos = l.len;
-            refreshLine(&l);
-            break;
-        case 12: /* ctrl+l, clear screen */
-            linenoiseClearScreen();
-            refreshLine(&l);
-            break;
-        case 23: /* ctrl+w, delete previous word */
-            linenoiseEditDeletePrevWord(&l);
+
+            /* Break out of the inner while(1) loop if we're completely
+             * finished handling this input! */
             break;
         }
     }
