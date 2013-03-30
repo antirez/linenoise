@@ -42,6 +42,8 @@ typedef struct linenoiseCompletions {
   char **cvec;
 } linenoiseCompletions;
 
+typedef void *linenoiseContext;
+
 typedef void(linenoiseCompletionCallback)(const char *, linenoiseCompletions *);
 void linenoiseSetCompletionCallback(linenoiseCompletionCallback *);
 void linenoiseAddCompletion(linenoiseCompletions *, char *);
@@ -54,4 +56,12 @@ int linenoiseHistoryLoad(char *filename);
 void linenoiseClearScreen(void);
 void linenoiseSetMultiLine(int ml);
 
+int linenoiseSetupContext(linenoiseContext **context, int fd, const char *prompt);
+int linenoiseSetPrompt(linenoiseContext *context, const char *prompt);
+int linenoiseStartInput(linenoiseContext *context);
+int linenoiseHandleInput(linenoiseContext *context, char c, char **line);
+int linenoiseClearLine(linenoiseContext *context);
+int linenoiseRefreshLine(linenoiseContext *context);
+
 #endif /* __LINENOISE_H */
+
