@@ -471,7 +471,8 @@ int linenoiseEditInsert(struct linenoiseState *l, int c) {
             if ((!mlmode && l->plen+l->len < l->cols) /* || mlmode */) {
                 /* Avoid a full update of the line in the
                  * trivial case. */
-                if (write(l->fd,&c,1) == -1) return -1;
+                char charc = (char)c;
+                if (write(l->fd,&charc,1) == -1) return -1;
             } else {
                 refreshLine(l);
             }
@@ -613,11 +614,12 @@ static int linenoiseEdit(int fd, char *buf, size_t buflen, const char *prompt)
          * there was an error reading from fd. Otherwise it will return the
          * character that should be handled next. */
         if (c == 9 && completionCallback != NULL) {
-            c = completeLine(&l);
+            int cint = completeLine(&l);
             /* Return on errors */
-            if (c < 0) return l.len;
+            if (cint < 0) return l.len;
             /* Read next character when 0 */
-            if (c == 0) continue;
+            if (cint == 0) continue;
+            c = (char)cint;
         }
 
         switch(c) {
