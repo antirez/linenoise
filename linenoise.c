@@ -734,8 +734,11 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
             linenoiseEditHistoryNext(&l, LINENOISE_HISTORY_NEXT);
             break;
         case ESC:    /* escape sequence */
-            /* Read the next two bytes representing the escape sequence. */
-            if (read(l.ifd,seq,2) == -1) break;
+            /* Read the next two bytes representing the escape sequence.
+             * Use two calls to handle slow terminals returning the two
+             * chars at different times. */
+            if (read(l.ifd,seq,1) == -1) break;
+            if (read(l.ifd,seq+1,1) == -1) break;
 
             if (seq[0] == 91 && seq[1] == 68) {
                 /* Left arrow */
