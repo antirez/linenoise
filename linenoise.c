@@ -665,7 +665,18 @@ static int linenoiseEdit(int fd, char *buf, size_t buflen, const char *prompt)
             break;
         case 27:    /* escape sequence */
             /* Read the next two bytes representing the escape sequence. */
-            if (read(fd,seq,2) == -1) break;
+            {
+                ssize_t b = read(fd, seq, 2);
+
+                if (b < 0) break;
+
+                if (b == 1) {
+                    b = read(fd,&seq[1], 1);
+                    if (b != 1) {
+                        break;
+                    }
+                }
+            }
 
             if (seq[0] == 91 && seq[1] == 68) {
                 /* Left arrow */
