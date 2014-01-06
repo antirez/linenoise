@@ -308,7 +308,7 @@ void linenoiseSetCompletionCallback(linenoiseCompletionCallback *fn) {
  * in order to add completion options given the input string when the
  * user typed <tab>. See the example.c source code for a very easy to
  * understand example. */
-void linenoiseAddCompletion(linenoiseCompletions *lc, char *str) {
+void linenoiseAddCompletion(linenoiseCompletions *lc, const char *str) {
     size_t len = strlen(str);
     char *copy = malloc(len+1);
     memcpy(copy,str,len+1);
@@ -665,7 +665,18 @@ static int linenoiseEdit(int fd, char *buf, size_t buflen, const char *prompt)
             break;
         case 27:    /* escape sequence */
             /* Read the next two bytes representing the escape sequence. */
-            if (read(fd,seq,2) == -1) break;
+            {
+                ssize_t b = read(fd, seq, 2);
+
+                if (b < 0) break;
+
+                if (b == 1) {
+                    b = read(fd,&seq[1], 1);
+                    if (b != 1) {
+                        break;
+                    }
+                }
+            }
 
             if (seq[0] == 91 && seq[1] == 68) {
                 /* Left arrow */
