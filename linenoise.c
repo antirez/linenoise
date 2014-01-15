@@ -593,8 +593,8 @@ static int linenoiseEdit(int fd, char *buf, size_t buflen, const char *prompt)
     l.history_index = 0;
 
     /* Buffer starts empty. */
-    buf[0] = '\0';
-    buflen--; /* Make sure there is always space for the nulterm */
+    l.buf[0] = '\0';
+    l.buflen--; /* Make sure there is always space for the nulterm */
 
     /* The latest history entry is always our current buffer, that
      * initially is just an empty string. */
