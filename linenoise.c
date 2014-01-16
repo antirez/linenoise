@@ -604,20 +604,20 @@ void linenoiseEditDeletePrevWord(struct linenoiseState *l) {
  * The function returns the length of the current buffer. */
 static int linenoiseEdit(int fd, char *buf, size_t buflen, const char *prompt)
 {
-    struct linenoiseState l;
-
     /* Populate the linenoise state that we pass to functions implementing
      * specific editing functionalities. */
-    l.fd = fd;
-    l.buf = buf;
-    l.buflen = buflen;
-    l.prompt = prompt;
-    l.plen = strlen(prompt);
-    l.oldpos = l.pos = 0;
-    l.len = 0;
-    l.cols = getColumns();
-    l.maxrows = 0;
-    l.history_index = 0;
+    struct linenoiseState l = {
+        .fd = fd,
+        .buf = buf,
+        .buflen = buflen,
+        .prompt = prompt,
+        .plen = strlen(prompt),
+        .oldpos = l.pos = 0,
+        .len = 0,
+        .cols = getColumns(),
+        .maxrows = 0,
+        .history_index = 0
+    };
 
     /* Buffer starts empty. */
     buf[0] = '\0';
