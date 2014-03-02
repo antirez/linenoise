@@ -44,6 +44,27 @@ The library is currently less than 1000 lines of code. In order to use it in you
 
 Please test it everywhere you can and report back!
 
+## Install / Uninstall:
+
+Install:
+
+```bash
+
+$ sudo make install
+cc -fPIC -Os -g -c -o linenoise.o linenoise.c
+cc -shared -o linenoise.so linenoise.o
+install linenoise.so /usr/local/lib
+```
+
+Uninstall:
+
+```bash
+
+$ sudo make uninstall
+rm -vf /usr/local/lib/linenoise.so
+removed ‘/usr/local/lib/linenoise.so’
+```
+
 ## Let's push this forward!
 
 Patches should be provided in the respect of linenoise sensibility for small
