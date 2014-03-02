@@ -28,7 +28,7 @@ linenoise.o:
 	$(CC) -fPIC -Os -g -c -o linenoise.o linenoise.c
 
 install: linenoise.$(LXTENSION)
-	install linenoise.(LXTENSION) $(INSTALL_PREFIX)/lib
+	install linenoise.$(LXTENSION) $(INSTALL_PREFIX)/lib
 
 uninstall:
 	rm -vf $(INSTALL_PREFIX)/lib/linenoise.$(LXTENSION)
