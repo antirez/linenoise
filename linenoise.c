@@ -318,6 +318,33 @@ void linenoiseAddCompletion(linenoiseCompletions *lc, char *str) {
 
 /* =========================== Line editing ================================= */
 
+/* We define a very simple "append buffer" structure, that is an heap
+ * allocated string where we can append to. This is useful in order to
+ * write all the escape sequences in a buffer and flush them to the standard
+ * output in a single call, to avoid flickering effects. */
+struct abuf {
+    char *b;
+    int len;
+};
+
+static void abInit(struct abuf *ab) {
+    ab->b = NULL;
+    ab->len = 0;
+}
+
+static void abAppend(struct abuf *ab, const char *s, int len) {
+    char *new = realloc(ab->b,ab->len+len);
+
+    if (new == NULL) return;
+    memcpy(new+ab->len,s,len);
+    ab->b = new;
+    ab->len += len;
+}
+
+static void abFree(struct abuf *ab) {
+    free(ab->b);
+}
+
 /* Single line low level line refresh.
  *
  * Rewrite the currently edited line accordingly to the buffer content,
@@ -329,6 +356,7 @@ static void refreshSingleLine(struct linenoiseState *l) {
     char *buf = l->buf;
     size_t len = l->len;
     size_t pos = l->pos;
+    struct abuf ab;
     
     while((plen+pos) >= l->cols) {
         buf++;
@@ -339,18 +367,21 @@ static void refreshSingleLine(struct linenoiseState *l) {
         len--;
     }
 
+    abInit(&ab);
     /* Cursor to left edge */
     snprintf(seq,64,"\x1b[0G");
-    if (write(fd,seq,strlen(seq)) == -1) return;
+    abAppend(&ab,seq,strlen(seq));
     /* Write the prompt and the current buffer content */
-    if (write(fd,l->prompt,strlen(l->prompt)) == -1) return;
-    if (write(fd,buf,len) == -1) return;
+    abAppend(&ab,l->prompt,strlen(l->prompt));
+    abAppend(&ab,buf,len);
     /* Erase to right */
     snprintf(seq,64,"\x1b[0K");
-    if (write(fd,seq,strlen(seq)) == -1) return;
+    abAppend(&ab,seq,strlen(seq));
     /* Move cursor to original position. */
     snprintf(seq,64,"\x1b[0G\x1b[%dC", (int)(pos+plen));
-    if (write(fd,seq,strlen(seq)) == -1) return;
+    abAppend(&ab,seq,strlen(seq));
+    if (write(fd,ab.b,ab.len) == -1) {} /* Can't recover from write error. */
+    abFree(&ab);
 }
 
 /* Multi line low level line refresh.
@@ -365,6 +396,7 @@ static void refreshMultiLine(struct linenoiseState *l) {
     int rpos2; /* rpos after refresh. */
     int old_rows = l->maxrows;
     int fd = l->fd, j;
+    struct abuf ab;
 
     /* Update maxrows if needed. */
     if (rows > (int)l->maxrows) l->maxrows = rows;
@@ -377,12 +409,13 @@ static void refreshMultiLine(struct linenoiseState *l) {
 
     /* First step: clear all the lines used before. To do so start by
      * going to the last row. */
+    abInit(&ab);
     if (old_rows-rpos > 0) {
 #ifdef LN_DEBUG
         fprintf(fp,", go down %d", old_rows-rpos);
 #endif
         snprintf(seq,64,"\x1b[%dB", old_rows-rpos);
-        if (write(fd,seq,strlen(seq)) == -1) return;
+        abAppend(&ab,seq,strlen(seq));
     }
 
     /* Now for every row clear it, go up. */
@@ -391,7 +424,7 @@ static void refreshMultiLine(struct linenoiseState *l) {
         fprintf(fp,", clear+up");
 #endif
         snprintf(seq,64,"\x1b[0G\x1b[0K\x1b[1A");
-        if (write(fd,seq,strlen(seq)) == -1) return;
+        abAppend(&ab,seq,strlen(seq));
     }
 
     /* Clean the top line. */
@@ -399,11 +432,11 @@ static void refreshMultiLine(struct linenoiseState *l) {
     fprintf(fp,", clear");
 #endif
     snprintf(seq,64,"\x1b[0G\x1b[0K");
-    if (write(fd,seq,strlen(seq)) == -1) return;
+    abAppend(&ab,seq,strlen(seq));
     
     /* Write the prompt and the current buffer content */
-    if (write(fd,l->prompt,strlen(l->prompt)) == -1) return;
-    if (write(fd,l->buf,l->len) == -1) return;
+    abAppend(&ab,l->prompt,strlen(l->prompt));
+    abAppend(&ab,l->buf,l->len);
 
     /* If we are at the very end of the screen with our prompt, we need to
      * emit a newline and move the prompt to the first column. */
@@ -414,9 +447,9 @@ static void refreshMultiLine(struct linenoiseState *l) {
 #ifdef LN_DEBUG
         fprintf(fp,", <newline>");
 #endif
-        if (write(fd,"\n",1) == -1) return;
+        abAppend(&ab,"\n",1);
         snprintf(seq,64,"\x1b[0G");
-        if (write(fd,seq,strlen(seq)) == -1) return;
+        abAppend(&ab,seq,strlen(seq));
         rows++;
         if (rows > (int)l->maxrows) l->maxrows = rows;
     }
@@ -432,14 +465,14 @@ static void refreshMultiLine(struct linenoiseState *l) {
         fprintf(fp,", go-up %d", rows-rpos2);
 #endif
         snprintf(seq,64,"\x1b[%dA", rows-rpos2);
-        if (write(fd,seq,strlen(seq)) == -1) return;
+        abAppend(&ab,seq,strlen(seq));
     }
     /* Set column. */
 #ifdef LN_DEBUG
     fprintf(fp,", set col %d", 1+((plen+(int)l->pos) % (int)l->cols));
 #endif
     snprintf(seq,64,"\x1b[%dG", 1+((plen+(int)l->pos) % (int)l->cols));
-    if (write(fd,seq,strlen(seq)) == -1) return;
+    abAppend(&ab,seq,strlen(seq));
 
     l->oldpos = l->pos;
 
@@ -447,6 +480,9 @@ static void refreshMultiLine(struct linenoiseState *l) {
     fprintf(fp,"\n");
     fclose(fp);
 #endif
+
+    if (write(fd,ab.b,ab.len) == -1) {} /* Can't recover from write error. */
+    abFree(&ab);
 }
 
 /* Calls the two low level functions refreshSingleLine() or
