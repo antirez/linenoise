@@ -140,6 +140,25 @@ static void linenoiseAtExit(void);
 int linenoiseHistoryAdd(const char *line);
 static void refreshLine(struct linenoiseState *l);
 
+/* Debugging macro. */
+#if 0
+FILE *lndebug_fp = NULL;
+#define lndebug(...) \
+    do { \
+        if (lndebug_fp == NULL) { \
+            lndebug_fp = fopen("/tmp/lndebug.txt","a"); \
+            fprintf(lndebug_fp, \
+            "[%d %d %d] p: %d, rows: %d, rpos: %d, max: %d, oldmax: %d\n", \
+            (int)l->len,(int)l->pos,(int)l->oldpos,plen,rows,rpos, \
+            (int)l->maxrows,old_rows); \
+        } \
+        fprintf(lndebug_fp, ", " __VA_ARGS__); \
+        fflush(lndebug_fp); \
+    } while (0)
+#else
+#define lndebug(fmt, ...)
+#endif
+
 /* ======================= Low level terminal handling ====================== */
 
 /* Set if to use or not the multi line mode. */
@@ -409,36 +428,24 @@ static void refreshMultiLine(struct linenoiseState *l) {
     /* Update maxrows if needed. */
     if (rows > (int)l->maxrows) l->maxrows = rows;
 
-#ifdef LN_DEBUG
-    FILE *fp = fopen("/tmp/debug.txt","a");
-    fprintf(fp,"[%d %d %d] p: %d, rows: %d, rpos: %d, max: %d, oldmax: %d",
-        (int)l->len,(int)l->pos,(int)l->oldpos,plen,rows,rpos,(int)l->maxrows,old_rows);
-#endif
-
     /* First step: clear all the lines used before. To do so start by
      * going to the last row. */
     abInit(&ab);
     if (old_rows-rpos > 0) {
-#ifdef LN_DEBUG
-        fprintf(fp,", go down %d", old_rows-rpos);
-#endif
+        lndebug("go down %d", old_rows-rpos);
         snprintf(seq,64,"\x1b[%dB", old_rows-rpos);
         abAppend(&ab,seq,strlen(seq));
     }
 
     /* Now for every row clear it, go up. */
     for (j = 0; j < old_rows-1; j++) {
-#ifdef LN_DEBUG
-        fprintf(fp,", clear+up");
-#endif
+        lndebug("clear+up");
         snprintf(seq,64,"\x1b[0G\x1b[0K\x1b[1A");
         abAppend(&ab,seq,strlen(seq));
     }
 
     /* Clean the top line. */
-#ifdef LN_DEBUG
-    fprintf(fp,", clear");
-#endif
+    lndebug("clear");
     snprintf(seq,64,"\x1b[0G\x1b[0K");
     abAppend(&ab,seq,strlen(seq));
     
@@ -452,9 +459,7 @@ static void refreshMultiLine(struct linenoiseState *l) {
         l->pos == l->len &&
         (l->pos+plen) % l->cols == 0)
     {
-#ifdef LN_DEBUG
-        fprintf(fp,", <newline>");
-#endif
+        lndebug("<newline>");
         abAppend(&ab,"\n",1);
         snprintf(seq,64,"\x1b[0G");
         abAppend(&ab,seq,strlen(seq));
@@ -464,30 +469,22 @@ static void refreshMultiLine(struct linenoiseState *l) {
 
     /* Move cursor to right position. */
     rpos2 = (plen+l->pos+l->cols)/l->cols; /* current cursor relative row. */
-#ifdef LN_DEBUG
-    fprintf(fp,", rpos2 %d", rpos2);
-#endif
+    lndebug("rpos2 %d", rpos2);
+
     /* Go up till we reach the expected positon. */
     if (rows-rpos2 > 0) {
-#ifdef LN_DEBUG
-        fprintf(fp,", go-up %d", rows-rpos2);
-#endif
+        lndebug("go-up %d", rows-rpos2);
         snprintf(seq,64,"\x1b[%dA", rows-rpos2);
         abAppend(&ab,seq,strlen(seq));
     }
+
     /* Set column. */
-#ifdef LN_DEBUG
-    fprintf(fp,", set col %d", 1+((plen+(int)l->pos) % (int)l->cols));
-#endif
+    lndebug("set col %d", 1+((plen+(int)l->pos) % (int)l->cols));
     snprintf(seq,64,"\x1b[%dG", 1+((plen+(int)l->pos) % (int)l->cols));
     abAppend(&ab,seq,strlen(seq));
 
+    lndebug("\n");
     l->oldpos = l->pos;
-
-#ifdef LN_DEBUG
-    fprintf(fp,"\n");
-    fclose(fp);
-#endif
 
     if (write(fd,ab.b,ab.len) == -1) {} /* Can't recover from write error. */
     abFree(&ab);
