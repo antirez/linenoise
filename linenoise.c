@@ -740,18 +740,19 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
             if (read(l.ifd,seq,1) == -1) break;
             if (read(l.ifd,seq+1,1) == -1) break;
 
-            if (seq[0] == 91 && seq[1] == 68) {
+            if (seq[0] == ARROW_PREFIX && seq[1] == 68) {
                 /* Left arrow */
                 linenoiseEditMoveLeft(&l);
-            } else if (seq[0] == 91 && seq[1] == 67) {
+            } else if (seq[0] == ARROW_PREFIX && seq[1] == 67) {
                 /* Right arrow */
                 linenoiseEditMoveRight(&l);
-            } else if (seq[0] == 91 && (seq[1] == 65 || seq[1] == 66)) {
+            } else if (seq[0] == ARROW_PREFIX &&
+                (seq[1] == UP_ARROW || seq[1] == DOWN_ARROW)) {
                 /* Up and Down arrows */
                 linenoiseEditHistoryNext(&l,
-                    (seq[1] == 65) ? LINENOISE_HISTORY_PREV :
-                                     LINENOISE_HISTORY_NEXT);
-            } else if (seq[0] == 91 && seq[1] > 48 && seq[1] < 55) {
+                    (seq[1] == UP_ARROW) ? LINENOISE_HISTORY_PREV :
+                                           LINENOISE_HISTORY_NEXT);
+            } else if (seq[0] == ARROW_PREFIX && seq[1] > 48 && seq[1] < 55) {
                 /* extended escape, read additional two bytes. */
                 if (read(l.ifd,seq2,2) == -1) break;
                 if (seq[1] == 51 && seq2[0] == 126) {
