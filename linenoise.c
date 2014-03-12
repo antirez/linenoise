@@ -123,7 +123,8 @@ char **history = NULL;
  * We pass this state to functions implementing specific editing
  * functionalities. */
 struct linenoiseState {
-    int fd;             /* Terminal file descriptor. */
+    int ifd;            /* Terminal stdin file descriptor. */
+    int ofd;            /* Terminal stdout file descriptor. */
     char *buf;          /* Edited line buffer. */
     size_t buflen;      /* Edited line buffer size. */
     const char *prompt; /* Prompt to display. */
@@ -258,7 +259,7 @@ static int getColumns(void) {
 
 /* Clear the screen. Used to handle ctrl+l */
 void linenoiseClearScreen(void) {
-    if (write(STDIN_FILENO,"\x1b[H\x1b[2J",7) <= 0) {
+    if (write(STDOUT_FILENO,"\x1b[H\x1b[2J",7) <= 0) {
         /* nothing to do, just to avoid warning. */
     }
 }
@@ -313,7 +314,7 @@ static int completeLine(struct linenoiseState *ls) {
                 refreshLine(ls);
             }
 
-            nread = read(ls->fd,&c,1);
+            nread = read(ls->ifd,&c,1);
             if (nread <= 0) {
                 freeCompletions(&lc);
                 return -1;
@@ -406,7 +407,7 @@ static void abFree(struct abuf *ab) {
 static void refreshSingleLine(struct linenoiseState *l) {
     char seq[64];
     size_t plen = strlen(l->prompt);
-    int fd = l->fd;
+    int fd = l->ofd;
     char *buf = l->buf;
     size_t len = l->len;
     size_t pos = l->pos;
@@ -449,7 +450,7 @@ static void refreshMultiLine(struct linenoiseState *l) {
     int rpos = (plen+l->oldpos+l->cols)/l->cols; /* cursor relative row. */
     int rpos2; /* rpos after refresh. */
     int old_rows = l->maxrows;
-    int fd = l->fd, j;
+    int fd = l->ofd, j;
     struct abuf ab;
 
     /* Update maxrows if needed. */
@@ -539,7 +540,7 @@ int linenoiseEditInsert(struct linenoiseState *l, char c) {
             if ((!mlmode && l->plen+l->len < l->cols) /* || mlmode */) {
                 /* Avoid a full update of the line in the
                  * trivial case. */
-                if (write(l->fd,&c,1) == -1) return -1;
+                if (write(l->ofd,&c,1) == -1) return -1;
             } else {
                 refreshLine(l);
             }
@@ -643,13 +644,14 @@ void linenoiseEditDeletePrevWord(struct linenoiseState *l) {
  * when ctrl+d is typed.
  *
  * The function returns the length of the current buffer. */
-static int linenoiseEdit(int fd, char *buf, size_t buflen, const char *prompt)
+static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, const char *prompt)
 {
     struct linenoiseState l;
 
     /* Populate the linenoise state that we pass to functions implementing
      * specific editing functionalities. */
-    l.fd = fd;
+    l.ifd = stdin_fd;
+    l.ofd = stdout_fd;
     l.buf = buf;
     l.buflen = buflen;
     l.prompt = prompt;
@@ -668,13 +670,13 @@ static int linenoiseEdit(int fd, char *buf, size_t buflen, const char *prompt)
      * initially is just an empty string. */
     linenoiseHistoryAdd("");
     
-    if (write(fd,prompt,l.plen) == -1) return -1;
+    if (write(l.ofd,prompt,l.plen) == -1) return -1;
     while(1) {
         char c;
         int nread;
         char seq[2], seq2[2];
 
-        nread = read(fd,&c,1);
+        nread = read(l.ifd,&c,1);
         if (nread <= 0) return l.len;
 
         /* Only autocomplete when the callback is set. It returns < 0 when
@@ -733,7 +735,7 @@ static int linenoiseEdit(int fd, char *buf, size_t buflen, const char *prompt)
             break;
         case ESC:    /* escape sequence */
             /* Read the next two bytes representing the escape sequence. */
-            if (read(fd,seq,2) == -1) break;
+            if (read(l.ifd,seq,2) == -1) break;
 
             if (seq[0] == 91 && seq[1] == 68) {
                 /* Left arrow */
@@ -748,7 +750,7 @@ static int linenoiseEdit(int fd, char *buf, size_t buflen, const char *prompt)
                                      LINENOISE_HISTORY_NEXT);
             } else if (seq[0] == 91 && seq[1] > 48 && seq[1] < 55) {
                 /* extended escape, read additional two bytes. */
-                if (read(fd,seq2,2) == -1) break;
+                if (read(l.ifd,seq2,2) == -1) break;
                 if (seq[1] == 51 && seq2[0] == 126) {
                     /* Delete key. */
                     linenoiseEditDelete(&l);
@@ -791,7 +793,6 @@ static int linenoiseEdit(int fd, char *buf, size_t buflen, const char *prompt)
 /* This function calls the line editing function linenoiseEdit() using
  * the STDIN file descriptor set in raw mode. */
 static int linenoiseRaw(char *buf, size_t buflen, const char *prompt) {
-    int fd = STDIN_FILENO;
     int count;
 
     if (buflen == 0) {
@@ -799,6 +800,7 @@ static int linenoiseRaw(char *buf, size_t buflen, const char *prompt) {
         return -1;
     }
     if (!isatty(STDIN_FILENO)) {
+        /* Not a tty: read from file / pipe. */
         if (fgets(buf, buflen, stdin) == NULL) return -1;
         count = strlen(buf);
         if (count && buf[count-1] == '\n') {
@@ -806,9 +808,10 @@ static int linenoiseRaw(char *buf, size_t buflen, const char *prompt) {
             buf[count] = '\0';
         }
     } else {
-        if (enableRawMode(fd) == -1) return -1;
-        count = linenoiseEdit(fd, buf, buflen, prompt);
-        disableRawMode(fd);
+        /* Interactive editing. */
+        if (enableRawMode(STDIN_FILENO) == -1) return -1;
+        count = linenoiseEdit(STDIN_FILENO, STDOUT_FILENO, buf, buflen, prompt);
+        disableRawMode(STDIN_FILENO);
         printf("\n");
     }
     return count;
