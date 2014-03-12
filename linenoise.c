@@ -674,7 +674,7 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
     while(1) {
         char c;
         int nread;
-        char seq[2], seq2[2];
+        char seq[3];
 
         nread = read(l.ifd,&c,1);
         if (nread <= 0) return l.len;
@@ -753,10 +753,9 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
                     (seq[1] == UP_ARROW) ? LINENOISE_HISTORY_PREV :
                                            LINENOISE_HISTORY_NEXT);
             } else if (seq[0] == ARROW_PREFIX && seq[1] > 48 && seq[1] < 55) {
-                /* extended escape, read additional two bytes. */
-                if (read(l.ifd,seq2,1) == -1) break;
-                if (read(l.ifd,seq2+1,1) == -1) break;
-                if (seq[1] == 51 && seq2[0] == 126) {
+                /* extended escape, read additional byte. */
+                if (read(l.ifd,seq+2,1) == -1) break;
+                if (seq[1] == 51 && seq[2] == 126) {
                     /* Delete key. */
                     linenoiseEditDelete(&l);
                 }
