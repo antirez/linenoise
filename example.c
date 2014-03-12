@@ -22,8 +22,11 @@ int main(int argc, char **argv) {
         if (!strcmp(*argv,"--multiline")) {
             linenoiseSetMultiLine(1);
             printf("Multi-line mode enabled.\n");
+        } else if (!strcmp(*argv,"--scancodes")) {
+            linenoisePrintScanCodes();
+            exit(0);
         } else {
-            fprintf(stderr, "Usage: %s [--multiline]\n", prgname);
+            fprintf(stderr, "Usage: %s [--multiline] [--scancodes]\n", prgname);
             exit(1);
         }
     }
