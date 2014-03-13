@@ -808,7 +808,7 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
                         linenoiseEditHistoryNext(&l, LINENOISE_HISTORY_NEXT);
                         break;
                     case 'C':
-                        linenoiseEditMoveLeft(&l);
+                        linenoiseEditMoveRight(&l);
                         break;
                     case 'D':
                         linenoiseEditMoveLeft(&l);
