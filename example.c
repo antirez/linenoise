@@ -22,11 +22,11 @@ int main(int argc, char **argv) {
         if (!strcmp(*argv,"--multiline")) {
             linenoiseSetMultiLine(1);
             printf("Multi-line mode enabled.\n");
-        } else if (!strcmp(*argv,"--scancodes")) {
-            linenoisePrintScanCodes();
+        } else if (!strcmp(*argv,"--keycodes")) {
+            linenoisePrintKeyCodes();
             exit(0);
         } else {
-            fprintf(stderr, "Usage: %s [--multiline] [--scancodes]\n", prgname);
+            fprintf(stderr, "Usage: %s [--multiline] [--keycodes]\n", prgname);
             exit(1);
         }
     }

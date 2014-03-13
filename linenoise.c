@@ -796,11 +796,11 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
 
 /* This special mode is used by linenoise in order to print scan codes
  * on screen for debugging / development purposes. It is implemented
- * by the linenoise_example program using the --scancodes option. */
-void linenoisePrintScanCodes(void) {
+ * by the linenoise_example program using the --keycodes option. */
+void linenoisePrintKeyCodes(void) {
     char quit[4];
 
-    printf("Linenoise scan codes debugging mode.\n"
+    printf("Linenoise key codes debugging mode.\n"
             "Press keys to see scan codes. Type 'quit' at any time to exit.\n");
     if (enableRawMode(STDIN_FILENO) == -1) return;
     memset(quit,' ',4);
