@@ -736,24 +736,33 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
             if (read(l.ifd,seq,1) == -1) break;
             if (read(l.ifd,seq+1,1) == -1) break;
 
-            if (seq[0] == '[' && seq[1] == 'D') {
-                /* Left arrow */
-                linenoiseEditMoveLeft(&l);
-            } else if (seq[0] == '[' && seq[1] == 'C') {
-                /* Right arrow */
-                linenoiseEditMoveRight(&l);
-            } else if (seq[0] == '[' &&
-                (seq[1] == 'A' || seq[1] == 'B')) {
-                /* Up and Down arrows */
-                linenoiseEditHistoryNext(&l,
-                    (seq[1] == 'A') ? LINENOISE_HISTORY_PREV :
-                                      LINENOISE_HISTORY_NEXT);
-            } else if (seq[0] == '[' && seq[1] > 48 && seq[1] < 55) {
-                /* Extended escape, read additional byte. */
-                if (read(l.ifd,seq+2,1) == -1) break;
-                if (seq[1] == '3' && seq[2] == '~') {
-                    /* Delete key. */
-                    linenoiseEditDelete(&l);
+            /* [ codes. */
+            if (seq[0] == '[') {
+                if (seq[1] >= '0' && seq[1] <= '9') {
+                    /* Extended escape, read additional byte. */
+                    if (read(l.ifd,seq+2,1) == -1) break;
+                    if (seq[2] == '~') {
+                        switch(seq[1]) {
+                        case '3': /* Delete key. */
+                            linenoiseEditDelete(&l);
+                            break;
+                        }
+                    }
+                } else {
+                    switch(seq[1]) {
+                    case 'A':
+                        linenoiseEditHistoryNext(&l, LINENOISE_HISTORY_PREV);
+                        break;
+                    case 'B':
+                        linenoiseEditHistoryNext(&l, LINENOISE_HISTORY_NEXT);
+                        break;
+                    case 'C':
+                        linenoiseEditMoveLeft(&l);
+                        break;
+                    case 'D':
+                        linenoiseEditMoveLeft(&l);
+                        break;
+                    }
                 }
             }
             break;
