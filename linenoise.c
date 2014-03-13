@@ -157,11 +157,6 @@ enum KEY_ACTION{
 	CTRL_U = 21,        /* Ctrl+u */
 	CTRL_W = 23,        /* Ctrl+w */
 	ESC = 27,           /* Escape */
-	UP_ARROW = 65,      /* Last character of up arrow */
-	DOWN_ARROW = 66,    /* Last character of down arrow */
-	RIGHT_ARROW = 67,   /* Last character of right arrow */
-	LEFT_ARROW = 68,    /* Last character of left arrow */
-	ARROW_PREFIX = 91,  /* Any ARROW = ESC + '[' + 'A' ~ 'D' */
 	BACKSPACE =  127    /* Backspace */
 };
 
@@ -741,22 +736,22 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
             if (read(l.ifd,seq,1) == -1) break;
             if (read(l.ifd,seq+1,1) == -1) break;
 
-            if (seq[0] == ARROW_PREFIX && seq[1] == 68) {
+            if (seq[0] == '[' && seq[1] == 'D') {
                 /* Left arrow */
                 linenoiseEditMoveLeft(&l);
-            } else if (seq[0] == ARROW_PREFIX && seq[1] == 67) {
+            } else if (seq[0] == '[' && seq[1] == 'C') {
                 /* Right arrow */
                 linenoiseEditMoveRight(&l);
-            } else if (seq[0] == ARROW_PREFIX &&
-                (seq[1] == UP_ARROW || seq[1] == DOWN_ARROW)) {
+            } else if (seq[0] == '[' &&
+                (seq[1] == 'A' || seq[1] == 'B')) {
                 /* Up and Down arrows */
                 linenoiseEditHistoryNext(&l,
-                    (seq[1] == UP_ARROW) ? LINENOISE_HISTORY_PREV :
-                                           LINENOISE_HISTORY_NEXT);
-            } else if (seq[0] == ARROW_PREFIX && seq[1] > 48 && seq[1] < 55) {
-                /* extended escape, read additional byte. */
+                    (seq[1] == 'A') ? LINENOISE_HISTORY_PREV :
+                                      LINENOISE_HISTORY_NEXT);
+            } else if (seq[0] == '[' && seq[1] > 48 && seq[1] < 55) {
+                /* Extended escape, read additional byte. */
                 if (read(l.ifd,seq+2,1) == -1) break;
-                if (seq[1] == 51 && seq[2] == 126) {
+                if (seq[1] == '3' && seq[2] == '~') {
                     /* Delete key. */
                     linenoiseEditDelete(&l);
                 }
