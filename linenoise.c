@@ -257,7 +257,7 @@ static int getCursorPosition(int ifd, int ofd) {
 
     /* Read the response: ESC [ rows ; cols R */
     while (i < sizeof(buf)-1) {
-        read(ifd,buf+i,1);
+        if (read(ifd,buf+i,1) != 1) break;
         if (buf[i] == 'R') break;
         i++;
     }
