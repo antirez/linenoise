@@ -118,7 +118,7 @@ static int mlmode = 0;  /* Multi line mode. Default is single line. */
 static int atexit_registered = 0; /* Register atexit just 1 time. */
 static int history_max_len = LINENOISE_DEFAULT_HISTORY_MAX_LEN;
 static int history_len = 0;
-char **history = NULL;
+static char **history = NULL;
 
 /* The linenoiseState structure represents the state during line editing.
  * We pass this state to functions implementing specific editing
@@ -985,16 +985,30 @@ static void linenoiseAtExit(void) {
     freeHistory();
 }
 
-/* Using a circular buffer is smarter, but a bit more complex to handle. */
+/* This is the API call to add a new entry in the linenoise history.
+ * It uses a fixed array of char pointers that are shifted (memmoved)
+ * when the history max length is reached in order to remove the older
+ * entry and make room for the new one, so it is not exactly suitable for huge
+ * histories, but will work well for a few hundred of entries.
+ *
+ * Using a circular buffer is smarter, but a bit more complex to handle. */
 int linenoiseHistoryAdd(const char *line) {
     char *linecopy;
 
     if (history_max_len == 0) return 0;
+
+    /* Initialization on first call. */
     if (history == NULL) {
         history = malloc(sizeof(char*)*history_max_len);
         if (history == NULL) return 0;
         memset(history,0,(sizeof(char*)*history_max_len));
     }
+
+    /* Don't add duplicated lines. */
+    if (history_len && !strcmp(history[history_len-1], line)) return 0;
+
+    /* Add an heap allocated copy of the line in the history.
+     * If we reached the max length, remove the older line. */
     linecopy = strdup(line);
     if (!linecopy) return 0;
     if (history_len == history_max_len) {
