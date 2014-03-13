@@ -619,6 +619,22 @@ void linenoiseEditMoveRight(struct linenoiseState *l) {
     }
 }
 
+/* Move cursor to the start of the line. */
+void linenoiseEditMoveHome(struct linenoiseState *l) {
+    if (l->pos != 0) {
+        l->pos = 0;
+        refreshLine(l);
+    }
+}
+
+/* Move cursor to the end of the line. */
+void linenoiseEditMoveEnd(struct linenoiseState *l) {
+    if (l->pos != l->len) {
+        l->pos = l->len;
+        refreshLine(l);
+    }
+}
+
 /* Substitute the currently edited line with the next or previous history
  * entry as specified by 'dir'. */
 #define LINENOISE_HISTORY_NEXT 0
@@ -787,7 +803,7 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
             if (read(l.ifd,seq,1) == -1) break;
             if (read(l.ifd,seq+1,1) == -1) break;
 
-            /* [ codes. */
+            /* ESC [ sequences. */
             if (seq[0] == '[') {
                 if (seq[1] >= '0' && seq[1] <= '9') {
                     /* Extended escape, read additional byte. */
@@ -801,19 +817,37 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
                     }
                 } else {
                     switch(seq[1]) {
-                    case 'A':
+                    case 'A': /* Up */
                         linenoiseEditHistoryNext(&l, LINENOISE_HISTORY_PREV);
                         break;
-                    case 'B':
+                    case 'B': /* Down */
                         linenoiseEditHistoryNext(&l, LINENOISE_HISTORY_NEXT);
                         break;
-                    case 'C':
+                    case 'C': /* Right */
                         linenoiseEditMoveRight(&l);
                         break;
-                    case 'D':
+                    case 'D': /* Left */
                         linenoiseEditMoveLeft(&l);
                         break;
+                    case 'H': /* Home */
+                        linenoiseEditMoveHome(&l);
+                        break;
+                    case 'F': /* End*/
+                        linenoiseEditMoveEnd(&l);
+                        break;
                     }
+                }
+            }
+
+            /* ESC O sequences. */
+            else if (seq[0] == 'O') {
+                switch(seq[1]) {
+                case 'H': /* Home */
+                    linenoiseEditMoveHome(&l);
+                    break;
+                case 'F': /* End*/
+                    linenoiseEditMoveEnd(&l);
+                    break;
                 }
             }
             break;
@@ -831,12 +865,10 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
             refreshLine(&l);
             break;
         case CTRL_A: /* Ctrl+a, go to the start of the line */
-            l.pos = 0;
-            refreshLine(&l);
+            linenoiseEditMoveHome(&l);
             break;
         case CTRL_E: /* ctrl+e, go to the end of the line */
-            l.pos = l.len;
-            refreshLine(&l);
+            linenoiseEditMoveEnd(&l);
             break;
         case CTRL_L: /* ctrl+l, clear screen */
             linenoiseClearScreen();
