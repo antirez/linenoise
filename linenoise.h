@@ -37,6 +37,8 @@
 #ifndef __LINENOISE_H
 #define __LINENOISE_H
 
+#if 0
+
 typedef struct linenoiseCompletions {
   size_t len;
   char **cvec;
@@ -53,5 +55,12 @@ int linenoiseHistorySave(char *filename);
 int linenoiseHistoryLoad(char *filename);
 void linenoiseClearScreen(void);
 void linenoiseSetMultiLine(int ml);
+
+#endif
+
+struct linenoiseInst {
+
+	void *ctx;
+};
 
 #endif /* __LINENOISE_H */

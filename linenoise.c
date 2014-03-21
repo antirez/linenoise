@@ -106,6 +106,7 @@
 #include <unistd.h>
 #include "linenoise.h"
 
+#if 0
 #define LINENOISE_DEFAULT_HISTORY_MAX_LEN 100
 #define LINENOISE_MAX_LINE 4096
 static char *unsupported_term[] = {"dumb","cons25",NULL};
@@ -883,3 +884,4 @@ int linenoiseHistoryLoad(char *filename) {
     fclose(fp);
     return 0;
 }
+#endif
