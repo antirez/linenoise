@@ -68,3 +68,7 @@ int lnTermWrite(struct lnTerminal *lnTerm, const char *buf, size_t len) {
 int lnTermRead(struct lnTerminal *lnTerm, char *buf, size_t len) {
 	return read(lnTerm->fd, buf, len);
 }
+
+void lnTermClearScreen(struct lnTerminal *lnTerm) {
+    lnTermWrite(lnTerm, "\x1b[H\x1b[2J", 7);
+}

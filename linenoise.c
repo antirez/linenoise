@@ -118,6 +118,101 @@ struct linenoiseState {
     int history_index;  /* The history index we are currently editing. */
 };
 
+/* Calls the two low level functions refreshSingleLine() or
+ * refreshMultiLine() according to the selected mode. */
+static void refreshLine(struct linenoiseState *l) {
+#if 0
+    if (mlmode)
+        refreshMultiLine(l);
+    else
+        refreshSingleLine(l);
+#endif
+}
+
+/* Insert the character 'c' at cursor current position.
+ *
+ * On error writing to the terminal -1 is returned, otherwise 0. */
+int linenoiseEditInsert(struct linenoiseState *l, char c) {
+    if (l->len < l->buflen) {
+        if (l->len == l->pos) {
+            l->buf[l->pos] = c;
+            l->pos++;
+            l->len++;
+            l->buf[l->len] = '\0';
+#if 0
+            if ((!mlmode && l->plen+l->len < l->cols) /* || mlmode */) {
+                /* Avoid a full update of the line in the
+                 * trivial case. */
+                if (write(l->fd,&c,1) == -1) return -1;
+            } else {
+                refreshLine(l);
+            }
+#endif
+        } else {
+            memmove(l->buf+l->pos+1,l->buf+l->pos,l->len-l->pos);
+            l->buf[l->pos] = c;
+            l->len++;
+            l->pos++;
+            l->buf[l->len] = '\0';
+            refreshLine(l);
+        }
+    }
+    return 0;
+}
+
+/* Move cursor on the left. */
+void linenoiseEditMoveLeft(struct linenoiseState *l) {
+    if (l->pos > 0) {
+        l->pos--;
+        refreshLine(l);
+    }
+}
+
+/* Move cursor on the right. */
+void linenoiseEditMoveRight(struct linenoiseState *l) {
+    if (l->pos != l->len) {
+        l->pos++;
+        refreshLine(l);
+    }
+}
+
+/* Delete the character at the right of the cursor without altering the cursor
+ * position. Basically this is what happens with the "Delete" keyboard key. */
+void linenoiseEditDelete(struct linenoiseState *l) {
+    if (l->len > 0 && l->pos < l->len) {
+        memmove(l->buf+l->pos,l->buf+l->pos+1,l->len-l->pos-1);
+        l->len--;
+        l->buf[l->len] = '\0';
+        refreshLine(l);
+    }
+}
+
+/* Backspace implementation. */
+void linenoiseEditBackspace(struct linenoiseState *l) {
+    if (l->pos > 0 && l->len > 0) {
+        memmove(l->buf+l->pos-1,l->buf+l->pos,l->len-l->pos);
+        l->pos--;
+        l->len--;
+        l->buf[l->len] = '\0';
+        refreshLine(l);
+    }
+}
+
+/* Delete the previosu word, maintaining the cursor at the start of the
+ * current word. */
+void linenoiseEditDeletePrevWord(struct linenoiseState *l) {
+    size_t old_pos = l->pos;
+    size_t diff;
+
+    while (l->pos > 0 && l->buf[l->pos-1] == ' ')
+        l->pos--;
+    while (l->pos > 0 && l->buf[l->pos-1] != ' ')
+        l->pos--;
+    diff = old_pos - l->pos;
+    memmove(l->buf+l->pos,l->buf+old_pos,l->len-old_pos+1);
+    l->len -= diff;
+    refreshLine(l);
+}
 /* This function is the core of the line editing capability of linenoise.
  * It expects 'fd' to be already in "raw mode" so that every key pressed
  * will be returned ASAP to read().
@@ -152,7 +247,6 @@ static int linenoiseEdit(struct linenoiseInst *lnInst, struct lnTerminal *lnTerm
 	linenoiseHistoryAdd("");
 #endif
 	lnTermWrite(lnTerm, lnInst->prompt, lnInst->plen);
-#if 0
     while(1) {
         char c;
         int nread;
@@ -161,6 +255,7 @@ static int linenoiseEdit(struct linenoiseInst *lnInst, struct lnTerminal *lnTerm
         nread = lnTermRead(lnTerm, &c, 1);
         if (nread <= 0) return l.len;
 
+#if 0
         /* Only autocomplete when the callback is set. It returns < 0 when
          * there was an error reading from fd. Otherwise it will return the
          * character that should be handled next. */
@@ -171,11 +266,14 @@ static int linenoiseEdit(struct linenoiseInst *lnInst, struct lnTerminal *lnTerm
             /* Read next character when 0 */
             if (c == 0) continue;
         }
+#endif
 
         switch(c) {
         case 13:    /* enter */
+#if 0
             history_len--;
             free(history[history_len]);
+#endif
             return (int)l.len;
         case 3:     /* ctrl-c */
             errno = EAGAIN;
@@ -189,8 +287,10 @@ static int linenoiseEdit(struct linenoiseInst *lnInst, struct lnTerminal *lnTerm
             if (l.len > 0) {
                 linenoiseEditDelete(&l);
             } else {
+#if 0
                 history_len--;
                 free(history[history_len]);
+#endif
                 return -1;
             }
             break;
@@ -210,14 +310,18 @@ static int linenoiseEdit(struct linenoiseInst *lnInst, struct lnTerminal *lnTerm
             linenoiseEditMoveRight(&l);
             break;
         case 16:    /* ctrl-p */
+#if 0 
             linenoiseEditHistoryNext(&l, LINENOISE_HISTORY_PREV);
+#endif
             break;
         case 14:    /* ctrl-n */
+#if 0
             linenoiseEditHistoryNext(&l, LINENOISE_HISTORY_NEXT);
+#endif
             break;
         case 27:    /* escape sequence */
             /* Read the next two bytes representing the escape sequence. */
-            if (read(fd,seq,2) == -1) break;
+            if (lnTermRead(lnTerm, seq, 2) == -1) break;
 
             if (seq[0] == 91 && seq[1] == 68) {
                 /* Left arrow */
@@ -226,13 +330,15 @@ static int linenoiseEdit(struct linenoiseInst *lnInst, struct lnTerminal *lnTerm
                 /* Right arrow */
                 linenoiseEditMoveRight(&l);
             } else if (seq[0] == 91 && (seq[1] == 65 || seq[1] == 66)) {
+#if 0
                 /* Up and Down arrows */
                 linenoiseEditHistoryNext(&l,
                     (seq[1] == 65) ? LINENOISE_HISTORY_PREV :
                                      LINENOISE_HISTORY_NEXT);
+#endif
             } else if (seq[0] == 91 && seq[1] > 48 && seq[1] < 55) {
                 /* extended escape, read additional two bytes. */
-                if (read(fd,seq2,2) == -1) break;
+                if (lnTermRead(lnTerm, seq2, 2) == -1) break;
                 if (seq[1] == 51 && seq2[0] == 126) {
                     /* Delete key. */
                     linenoiseEditDelete(&l);
@@ -261,7 +367,7 @@ static int linenoiseEdit(struct linenoiseInst *lnInst, struct lnTerminal *lnTerm
             refreshLine(&l);
             break;
         case 12: /* ctrl+l, clear screen */
-            linenoiseClearScreen();
+            lnTermClearScreen(lnTerm);
             refreshLine(&l);
             break;
         case 23: /* ctrl+w, delete previous word */
@@ -269,7 +375,6 @@ static int linenoiseEdit(struct linenoiseInst *lnInst, struct lnTerminal *lnTerm
             break;
         }
     }
-#endif
     return l.len;
 }
 
@@ -579,61 +684,6 @@ static void refreshMultiLine(struct linenoiseState *l) {
     fclose(fp);
 #endif
 }
-
-/* Calls the two low level functions refreshSingleLine() or
- * refreshMultiLine() according to the selected mode. */
-static void refreshLine(struct linenoiseState *l) {
-    if (mlmode)
-        refreshMultiLine(l);
-    else
-        refreshSingleLine(l);
-}
-
-/* Insert the character 'c' at cursor current position.
- *
- * On error writing to the terminal -1 is returned, otherwise 0. */
-int linenoiseEditInsert(struct linenoiseState *l, char c) {
-    if (l->len < l->buflen) {
-        if (l->len == l->pos) {
-            l->buf[l->pos] = c;
-            l->pos++;
-            l->len++;
-            l->buf[l->len] = '\0';
-            if ((!mlmode && l->plen+l->len < l->cols) /* || mlmode */) {
-                /* Avoid a full update of the line in the
-                 * trivial case. */
-                if (write(l->fd,&c,1) == -1) return -1;
-            } else {
-                refreshLine(l);
-            }
-        } else {
-            memmove(l->buf+l->pos+1,l->buf+l->pos,l->len-l->pos);
-            l->buf[l->pos] = c;
-            l->len++;
-            l->pos++;
-            l->buf[l->len] = '\0';
-            refreshLine(l);
-        }
-    }
-    return 0;
-}
-
-/* Move cursor on the left. */
-void linenoiseEditMoveLeft(struct linenoiseState *l) {
-    if (l->pos > 0) {
-        l->pos--;
-        refreshLine(l);
-    }
-}
-
-/* Move cursor on the right. */
-void linenoiseEditMoveRight(struct linenoiseState *l) {
-    if (l->pos != l->len) {
-        l->pos++;
-        refreshLine(l);
-    }
-}
-
 /* Substitute the currently edited line with the next or previous history
  * entry as specified by 'dir'. */
 #define LINENOISE_HISTORY_NEXT 0
@@ -658,44 +708,6 @@ void linenoiseEditHistoryNext(struct linenoiseState *l, int dir) {
         l->len = l->pos = strlen(l->buf);
         refreshLine(l);
     }
-}
-
-/* Delete the character at the right of the cursor without altering the cursor
- * position. Basically this is what happens with the "Delete" keyboard key. */
-void linenoiseEditDelete(struct linenoiseState *l) {
-    if (l->len > 0 && l->pos < l->len) {
-        memmove(l->buf+l->pos,l->buf+l->pos+1,l->len-l->pos-1);
-        l->len--;
-        l->buf[l->len] = '\0';
-        refreshLine(l);
-    }
-}
-
-/* Backspace implementation. */
-void linenoiseEditBackspace(struct linenoiseState *l) {
-    if (l->pos > 0 && l->len > 0) {
-        memmove(l->buf+l->pos-1,l->buf+l->pos,l->len-l->pos);
-        l->pos--;
-        l->len--;
-        l->buf[l->len] = '\0';
-        refreshLine(l);
-    }
-}
-
-/* Delete the previosu word, maintaining the cursor at the start of the
- * current word. */
-void linenoiseEditDeletePrevWord(struct linenoiseState *l) {
-    size_t old_pos = l->pos;
-    size_t diff;
-
-    while (l->pos > 0 && l->buf[l->pos-1] == ' ')
-        l->pos--;
-    while (l->pos > 0 && l->buf[l->pos-1] != ' ')
-        l->pos--;
-    diff = old_pos - l->pos;
-    memmove(l->buf+l->pos,l->buf+old_pos,l->len-old_pos+1);
-    l->len -= diff;
-    refreshLine(l);
 }
 /* This function calls the line editing function linenoiseEdit() using
  * the STDIN file descriptor set in raw mode. */

@@ -17,9 +17,8 @@ struct lnTerminal {
 };
 
 extern int lnTermSavePrepare(struct lnTerminal *lnTerm);
+extern void lnTermResotre(struct lnTerminal *lnTerm);
+extern int lnTermWrite(struct lnTerminal *lnTerm, const char *buf, size_t len);
+extern int lnTermRead(struct lnTerminal *lnTerm, char *buf, size_t len);
 
-void lnTermResotre(struct lnTerminal *lnTerm);
-
-int lnTermWrite(struct lnTerminal *lnTerm, const char *buf, size_t len);
-
-int lnTermRead(struct lnTerminal *lnTerm, char *buf, size_t len);
+extern void lnTermClearScreen(struct lnTerminal *lnTerm);
