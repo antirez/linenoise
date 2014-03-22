@@ -22,3 +22,6 @@ extern int lnTermWrite(struct lnTerminal *lnTerm, const char *buf, size_t len);
 extern int lnTermRead(struct lnTerminal *lnTerm, char *buf, size_t len);
 
 extern void lnTermClearScreen(struct lnTerminal *lnTerm);
+extern void lnTermClearLineRight(struct lnTerminal *lnTerm);
+extern void lnTermCursorSet(struct lnTerminal *lnTerm, unsigned int pos);
+

@@ -14,7 +14,7 @@ int main(int argc, char **argv) {
 
     do {
 	linenoise(&lnInst, buf, sizeof(buf));
-	printf("You've entered \"%s\"\n");
+	printf("You've entered \"%s\"\n", buf);
     } while(strcmp(buf, "exit"));
 
     return 0;

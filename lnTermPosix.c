@@ -6,10 +6,11 @@
  * @date    22.03.2014
  */
 
-#include <termios.h>
+#include <errno.h>
 #include <string.h>
 #include <unistd.h>
-#include <errno.h>
+#include <termios.h>
+#include <stdarg.h>
 
 #include "lnTerm.h"
 
@@ -69,6 +70,31 @@ int lnTermRead(struct lnTerminal *lnTerm, char *buf, size_t len) {
 	return read(lnTerm->fd, buf, len);
 }
 
+static int lnTermVtSeq(struct lnTerminal *lnTerm, const char *fmt, ...) {
+	char seq[64];
+	int len;
+	va_list va;
+
+	strcpy(seq, "\x1b[");
+
+	va_start(va, fmt);
+	len = 2 + vsnprintf(seq + 2, sizeof(seq) - 2, fmt, va);
+	va_end(va);
+
+	lnTermWrite(lnTerm, seq, len);
+}
+
 void lnTermClearScreen(struct lnTerminal *lnTerm) {
-    lnTermWrite(lnTerm, "\x1b[H\x1b[2J", 7);
+	lnTermVtSeq(lnTerm, "H");
+	lnTermVtSeq(lnTerm, "2J");
+}
+
+void lnTermClearLineRight(struct lnTerminal *lnTerm) {
+	lnTermVtSeq(lnTerm, "0K");
+}
+
+void lnTermCursorSet(struct lnTerminal *lnTerm, unsigned int pos) {
+	lnTermVtSeq(lnTerm, "0G");
+	if (pos) 
+		lnTermVtSeq(lnTerm, "%dC", pos);
 }
