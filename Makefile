@@ -1,3 +1,5 @@
+CFLAGS = -g
+LDFLAGS = -g
 
 all : linenoise_example
 
@@ -7,7 +9,7 @@ liblinenoise.a : linenoise.o
 	$(AR) rcs $@ $^
 
 linenoise_example: elinenoise_example.c liblinenoise.a
-	$(CC) $(CFLAGS) -L. -llinenoise -o $@ $<
+	$(CC) $(CFLAGS) -o $@ $< -L. -llinenoise
 
 clean:
 	-rm -f linenoise_example

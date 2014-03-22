@@ -59,8 +59,10 @@ void linenoiseSetMultiLine(int ml);
 #endif
 
 struct linenoiseInst {
-
-	void *ctx;
+	char prompt[64];
+	size_t plen;
 };
 
+extern int linenoiseInit(struct linenoiseInst *lnInst, const char *prompt);
+extern int linenoise(struct linenoiseInst *lnInst, char *line, unsigned int len);
 #endif /* __LINENOISE_H */
