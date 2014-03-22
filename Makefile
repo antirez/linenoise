@@ -5,7 +5,7 @@ all : linenoise_example
 
 linenoise.o : linenoise.h
 
-liblinenoise.a : linenoise.o
+liblinenoise.a : linenoise.o lnTermPosix.o
 	$(AR) rcs $@ $^
 
 linenoise_example: elinenoise_example.c liblinenoise.a

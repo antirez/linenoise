@@ -94,16 +94,11 @@
  * 
  */
 
-#include <termios.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <errno.h>
 #include <string.h>
-#include <stdlib.h>
-#include <sys/types.h>
-#include <sys/ioctl.h>
-#include <unistd.h>
+#include <errno.h>
+
+#include "lnTerm.h"
+
 #include "linenoise.h"
 
 /* The linenoiseState structure represents the state during line editing.
@@ -123,68 +118,6 @@ struct linenoiseState {
     int history_index;  /* The history index we are currently editing. */
 };
 
-struct lnTerminal {
-	int fd;
-	struct termios orig_termios;
-	char rawmode;
-};
-
-/* Raw mode: 1960 magic shit. */
-static int lnTermSavePrepare(struct lnTerminal *lnTerm) {
-    struct termios raw;
-
-	memset(lnTerm, 0, sizeof(*lnTerm));
-	lnTerm->fd = STDIN_FILENO;
-#if 0
-    if (!isatty(STDIN_FILENO)) goto fatal;
-#endif
-#if 0
-    if (!atexit_registered) {
-        atexit(linenoiseAtExit);
-        atexit_registered = 1;
-    }
-#endif
-    if (tcgetattr(lnTerm->fd, &lnTerm->orig_termios) == -1) goto fatal;
-
-    raw = lnTerm->orig_termios;  /* modify the original mode */
-    /* input modes: no break, no CR to NL, no parity check, no strip char,
-     * no start/stop output control. */
-    raw.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
-    /* output modes - disable post processing */
-    raw.c_oflag &= ~(OPOST);
-    /* control modes - set 8 bit chars */
-    raw.c_cflag |= (CS8);
-    /* local modes - choing off, canonical off, no extended functions,
-     * no signal chars (^Z,^C) */
-    raw.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
-    /* control chars - set return condition: min number of bytes and timer.
-     * We want read to return every single byte, without timeout. */
-    raw.c_cc[VMIN] = 1; raw.c_cc[VTIME] = 0; /* 1 byte, no timer */
-
-    /* put terminal in raw mode after flushing */
-    if (tcsetattr(lnTerm->fd, TCSAFLUSH, &raw) < 0) goto fatal;
-    lnTerm->rawmode = 1;
-    return 0;
-
-fatal:
-    errno = ENOTTY;
-    return -1;
-}
-
-static void lnTermResotre(struct lnTerminal *lnTerm) {
-    /* Don't even check the return value as it's too late. */
-    if (lnTerm->rawmode && tcsetattr(lnTerm->fd, TCSAFLUSH, &lnTerm->orig_termios) != -1)
-        lnTerm->rawmode = 0;
-}
-
-static int lnTermWrite(struct lnTerminal *lnTerm, const char *buf, size_t len) {
-	return write(lnTerm->fd, buf, len);
-}
-
-static int lnTermRead(struct lnTerminal *lnTerm, char *buf, size_t len) {
-	return read(lnTerm->fd, buf, len);
-}
-
 /* This function is the core of the line editing capability of linenoise.
  * It expects 'fd' to be already in "raw mode" so that every key pressed
  * will be returned ASAP to read().
@@ -202,10 +135,6 @@ static int linenoiseEdit(struct linenoiseInst *lnInst, struct lnTerminal *lnTerm
     /*l.fd = fd;*/
     l.buf = buf;
     l.buflen = buflen;
-#if 0
-    l.prompt = prompt;
-    l.plen = strlen(prompt);
-#endif
     l.oldpos = l.pos = 0;
     l.len = 0;
 #if 0
@@ -363,9 +292,10 @@ int linenoise(struct linenoiseInst *lnInst, char *line, unsigned int len) {
 	if (lnTermSavePrepare(&lnTerm) == -1) return -1;
 	count = linenoiseEdit(lnInst, &lnTerm, line, len);
 	lnTermResotre(&lnTerm);
-	printf("\n");
+	lnTermWrite(&lnTerm, "\n", sizeof("\n"));
     return count;
 }
+
 #if 0
 #define LINENOISE_DEFAULT_HISTORY_MAX_LEN 100
 #define LINENOISE_MAX_LINE 4096
