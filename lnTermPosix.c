@@ -8,6 +8,7 @@
 
 #include <errno.h>
 #include <string.h>
+#include <stdio.h>
 #include <unistd.h>
 #include <termios.h>
 #include <sys/ioctl.h>
@@ -107,3 +108,7 @@ int lnTermGetColumns(struct lnTerminal *lnTerm) {
     return ws.ws_col;
 }
 
+void lnTermBeep(struct lnTerminal *lnTerm) {
+    fprintf(stderr, "\x7");
+    fflush(stderr);
+}

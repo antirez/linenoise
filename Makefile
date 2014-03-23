@@ -8,7 +8,7 @@ linenoise.o : linenoise.h
 liblinenoise.a : linenoise.o lnTermPosix.o
 	$(AR) rcs $@ $^
 
-linenoise_example: elinenoise_example.c liblinenoise.a
+linenoise_example: example.c liblinenoise.a
 	$(CC) $(CFLAGS) -o $@ $< -L. -llinenoise
 
 clean:
