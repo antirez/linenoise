@@ -22,15 +22,7 @@ int lnTermSavePrepare(struct lnTerminal *lnTerm) {
 
 	memset(lnTerm, 0, sizeof(*lnTerm));
 	lnTerm->fd = STDIN_FILENO;
-#if 0
-    if (!isatty(STDIN_FILENO)) goto fatal;
-#endif
-#if 0
-    if (!atexit_registered) {
-        atexit(linenoiseAtExit);
-        atexit_registered = 1;
-    }
-#endif
+
     if (tcgetattr(lnTerm->fd, &lnTerm->orig_termios) == -1) goto fatal;
 
     raw = lnTerm->orig_termios;  /* modify the original mode */
@@ -84,6 +76,7 @@ static int lnTermVtSeq(struct lnTerminal *lnTerm, const char *fmt, ...) {
 	va_end(va);
 
 	lnTermWrite(lnTerm, seq, len);
+	return len;
 }
 
 void lnTermClearScreen(struct lnTerminal *lnTerm) {
@@ -99,6 +92,13 @@ void lnTermCursorSet(struct lnTerminal *lnTerm, unsigned int pos) {
 	lnTermVtSeq(lnTerm, "0G");
 	if (pos) 
 		lnTermVtSeq(lnTerm, "%dC", pos);
+}
+
+void lnTermCursorLineAdd(struct lnTerminal *lnTerm, int l) {
+	if (l >= 0) 
+		lnTermVtSeq(lnTerm, "%dB", l);
+	else 
+		lnTermVtSeq(lnTerm, "%dA", -l);
 }
 
 int lnTermGetColumns(struct lnTerminal *lnTerm) {

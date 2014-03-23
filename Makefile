@@ -1,4 +1,4 @@
-CFLAGS = -g
+CFLAGS = -g -Wall
 LDFLAGS = -g
 
 all : linenoise_example
