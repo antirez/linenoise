@@ -3,5 +3,5 @@ linenoise_example
 history.txt
 *.o
 *.a
-.*.sw?
+.*sw?
 *~
