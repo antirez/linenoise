@@ -26,4 +26,5 @@ void lnTermBeep(struct lnTerminal *lnTerm);
 extern void lnTermClearScreen(struct lnTerminal *lnTerm);
 extern void lnTermClearLineRight(struct lnTerminal *lnTerm);
 extern void lnTermCursorSet(struct lnTerminal *lnTerm, unsigned int pos);
+extern void lnTermCursorLineAdd(struct lnTerminal *lnTerm, int l);
 

@@ -295,15 +295,12 @@ static void refreshSingleLine(struct linenoiseState *l) {
  * Rewrite the currently edited line accordingly to the buffer content,
  * cursor position, and number of columns of the terminal. */
 static void refreshMultiLine(struct linenoiseState *l) {
-    (void) l;
-#if 0
-    char seq[64];
     int plen = strlen(l->prompt);
     int rows = (plen+l->len+l->cols-1)/l->cols; /* rows used by current buf. */
     int rpos = (plen+l->oldpos+l->cols)/l->cols; /* cursor relative row. */
     int rpos2; /* rpos after refresh. */
     int old_rows = l->maxrows;
-    int fd = l->fd, j;
+    int j;
 
     /* Update maxrows if needed. */
     if (rows > (int)l->maxrows) l->maxrows = rows;
@@ -320,8 +317,7 @@ static void refreshMultiLine(struct linenoiseState *l) {
 #ifdef LN_DEBUG
         fprintf(fp,", go down %d", old_rows-rpos);
 #endif
-        snprintf(seq,64,"\x1b[%dB", old_rows-rpos);
-        if (write(fd,seq,strlen(seq)) == -1) return;
+        lnTermCursorLineAdd(l->lnTerm, old_rows - rpos);
     }
 
     /* Now for every row clear it, go up. */
@@ -329,20 +325,21 @@ static void refreshMultiLine(struct linenoiseState *l) {
 #ifdef LN_DEBUG
         fprintf(fp,", clear+up");
 #endif
-        snprintf(seq,64,"\x1b[0G\x1b[0K\x1b[1A");
-        if (write(fd,seq,strlen(seq)) == -1) return;
+        lnTermCursorSet(l->lnTerm, 0);
+        lnTermClearLineRight(l->lnTerm);
+        lnTermCursorLineAdd(l->lnTerm, -1);
     }
 
     /* Clean the top line. */
 #ifdef LN_DEBUG
     fprintf(fp,", clear");
 #endif
-    snprintf(seq,64,"\x1b[0G\x1b[0K");
-    if (write(fd,seq,strlen(seq)) == -1) return;
+    lnTermCursorSet(l->lnTerm, 0);
+    lnTermClearLineRight(l->lnTerm);
     
     /* Write the prompt and the current buffer content */
-    if (write(fd,l->prompt,strlen(l->prompt)) == -1) return;
-    if (write(fd,l->buf,l->len) == -1) return;
+    if (lnTermWrite(l->lnTerm,l->prompt,strlen(l->prompt)) == -1) return;
+    if (lnTermWrite(l->lnTerm,l->buf,l->len) == -1) return;
 
     /* If we are at the very end of the screen with our prompt, we need to
      * emit a newline and move the prompt to the first column. */
@@ -353,9 +350,8 @@ static void refreshMultiLine(struct linenoiseState *l) {
 #ifdef LN_DEBUG
         fprintf(fp,", <newline>");
 #endif
-        if (write(fd,"\n",1) == -1) return;
-        snprintf(seq,64,"\x1b[0G");
-        if (write(fd,seq,strlen(seq)) == -1) return;
+        if (lnTermWrite(l->lnTerm,"\n",1) == -1) return;
+        lnTermCursorSet(l->lnTerm, 0);
         rows++;
         if (rows > (int)l->maxrows) l->maxrows = rows;
     }
@@ -370,22 +366,19 @@ static void refreshMultiLine(struct linenoiseState *l) {
 #ifdef LN_DEBUG
         fprintf(fp,", go-up %d", rows-rpos2);
 #endif
-        snprintf(seq,64,"\x1b[%dA", rows-rpos2);
-        if (write(fd,seq,strlen(seq)) == -1) return;
+        lnTermCursorLineAdd(l->lnTerm, - (rows - rpos2));
     }
     /* Set column. */
 #ifdef LN_DEBUG
-    fprintf(fp,", set col %d", 1+((plen+(int)l->pos) % (int)l->cols));
+    fprintf(fp,", set col %d", ((plen+(int)l->pos) % (int)l->cols));
 #endif
-    snprintf(seq,64,"\x1b[%dG", 1+((plen+(int)l->pos) % (int)l->cols));
-    if (write(fd,seq,strlen(seq)) == -1) return;
+    lnTermCursorSet(l->lnTerm, ((plen+(int)l->pos) % (int)l->cols));
 
     l->oldpos = l->pos;
 
 #ifdef LN_DEBUG
     fprintf(fp,"\n");
     fclose(fp);
-#endif
 #endif
 }
 
@@ -678,13 +671,13 @@ static int linenoiseRaw(char *buf, size_t buflen, const char *prompt) {
             buf[count] = '\0';
         }
     } else {
-	atexit_init();
-	if (lnTermSavePrepare(&lnTerm) == -1) return -1;
-	linenoiseAtExitTerm = &lnTerm;
+        atexit_init();
+        if (lnTermSavePrepare(&lnTerm) == -1) return -1;
+        linenoiseAtExitTerm = &lnTerm;
         count = linenoiseEdit(&lnTerm, buf, buflen, prompt);
-	linenoiseAtExitTerm = NULL;
-	lnTermResotre(&lnTerm);
-	lnTermWrite(&lnTerm, "\n", 1);
+        linenoiseAtExitTerm = NULL;
+        lnTermResotre(&lnTerm);
+        lnTermWrite(&lnTerm, "\n", 1);
     }
     return count;
 }
@@ -734,7 +727,7 @@ static void freeHistory(void) {
 /* At exit we'll try to fix the terminal to the initial conditions. */
 static void linenoiseAtExit(void) {
     if (linenoiseAtExitTerm) 
-	lnTermResotre(linenoiseAtExitTerm);
+        lnTermResotre(linenoiseAtExitTerm);
     freeHistory();
 }
 
