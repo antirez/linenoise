@@ -10,6 +10,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <termios.h>
+#include <sys/ioctl.h>
 #include <stdarg.h>
 
 #include "lnTerm.h"
@@ -98,3 +99,11 @@ void lnTermCursorSet(struct lnTerminal *lnTerm, unsigned int pos) {
 	if (pos) 
 		lnTermVtSeq(lnTerm, "%dC", pos);
 }
+
+int lnTermGetColumns(struct lnTerminal *lnTerm) {
+    struct winsize ws;
+
+    if (ioctl(lnTerm->fd, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0) return 80;
+    return ws.ws_col;
+}
+

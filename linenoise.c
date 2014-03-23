@@ -266,11 +266,7 @@ static int linenoiseEdit(struct linenoiseInst *lnInst, struct lnTerminal *lnTerm
     l.buflen = buflen;
     l.oldpos = l.pos = 0;
     l.len = 0;
-#if 0
-    l.cols = getColumns();
-#else 
-    l.cols = 80;
-#endif
+    l.cols = lnTermGetColumns(lnTerm);
     l.maxrows = 0;
     l.history_index = 0;
     l.lnTerm = lnTerm;

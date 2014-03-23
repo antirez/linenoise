@@ -16,6 +16,7 @@ struct lnTerminal {
 	char rawmode;
 };
 
+extern int lnTermGetColumns(struct lnTerminal *lnTerm);
 extern int lnTermSavePrepare(struct lnTerminal *lnTerm);
 extern void lnTermResotre(struct lnTerminal *lnTerm);
 extern int lnTermWrite(struct lnTerminal *lnTerm, const char *buf, size_t len);
