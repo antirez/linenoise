@@ -6,6 +6,9 @@
  * @date    22.03.2014
  */
 
+#ifndef LINENOISE_TERM_H_
+#define LINENOISE_TERM_H_
+
 #include <sys/types.h>
 
 // TODO hide from here
@@ -28,3 +31,4 @@ extern void lnTermClearLineRight(struct lnTerminal *lnTerm);
 extern void lnTermCursorSet(struct lnTerminal *lnTerm, unsigned int pos);
 extern void lnTermCursorLineAdd(struct lnTerminal *lnTerm, int l);
 
+#endif /* LINENOISE_TERM_H_ */
