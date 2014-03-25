@@ -11,19 +11,22 @@
 
 #include <sys/types.h>
 
-#define LINENOISE_DEFAULT_HISTORY_MAX_LEN 100
-struct lnHistory { 
-    int history_max_len;// = LINENOISE_DEFAULT_HISTORY_MAX_LEN;
-    int history_len; //= 0;
-    char **history; // = NULL;
+#define LN_HIST_SEEK_SET 0
+#define LN_HIST_SEEK_CUR 1
 
-    int history_index;  /* The history index we are currently editing. */
+#define LINENOISE_DEFAULT_HISTORY_MAX_LEN 100
+
+struct lnHistory { 
+    int max_len;
+    char **history;
+    int len;
 };
 
 extern int lnHistInit(struct lnHistory *lnHist);
-extern int lnHistAdd(struct lnHistory *lnHist, const char *line);
-extern int lnHistSeek(struct lnHistory *lnHist, int d);
-extern int lnHistGet(struct lnHistory *lnHist, char *buf, size_t len);
+extern int lnHistAddTail(struct lnHistory *lnHist, const char *line);
+extern int lnHistGet(struct lnHistory *lnHist, size_t ind, char *buf, size_t len);
+extern int lnHistSetMaxLen(struct lnHistory *lnHist, size_t len);
+extern void lnHistDeinit(struct lnHistory *lnHist);
 
 #endif /* LINENOISE_HIST_H_ */
 
