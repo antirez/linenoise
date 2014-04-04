@@ -340,7 +340,6 @@ static void freeCompletions(linenoiseCompletions *lc) {
  * structure as described in the structure definition. */
 static int completeLine(struct linenoiseState *ls) {
     linenoiseCompletions lc = { 0, NULL };
-    int nread, nwritten;
     char c = 0;
 
     completionCallback(ls->buf,&lc);
@@ -348,6 +347,7 @@ static int completeLine(struct linenoiseState *ls) {
         linenoiseBeep();
     } else {
         size_t stop = 0, i = 0;
+        int nread, nwritten;
 
         while(!stop) {
             /* Show completion or original buffer */
