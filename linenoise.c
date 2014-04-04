@@ -268,7 +268,7 @@ static int getCursorPosition(int ifd, int ofd) {
 
     /* Parse it. */
     if (buf[0] != ESC || buf[1] != '[') return -1;
-    if (sscanf(buf+2,"%d;%d",&rows,&cols) != 2) return -1;
+    if (sscanf(buf+2,"%6d;%6d",&rows,&cols) != 2) return -1;
     return cols;
 }
 
