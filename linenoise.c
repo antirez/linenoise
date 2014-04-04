@@ -94,12 +94,15 @@
  * 
  */
 
+#define _XOPEN_SOURCE 500       /* strdup */
+
 #include <termios.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
+#include <strings.h>
 #include <stdlib.h>
 #include <ctype.h>
 #include <sys/types.h>
