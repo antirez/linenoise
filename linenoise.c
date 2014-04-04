@@ -952,7 +952,6 @@ static int linenoiseRaw(char *buf, size_t buflen, const char *prompt) {
  * something even in the most desperate of the conditions. */
 char *linenoise(const char *prompt) {
     char buf[LINENOISE_MAX_LINE];
-    int count;
 
     if (isUnsupportedTerm()) {
         size_t len;
@@ -967,6 +966,8 @@ char *linenoise(const char *prompt) {
         }
         return strdup(buf);
     } else {
+        int count;
+
         count = linenoiseRaw(buf,LINENOISE_MAX_LINE,prompt);
         if (count == -1) return NULL;
         return strdup(buf);
