@@ -348,11 +348,12 @@ static int completeLine(struct linenoiseState *ls) {
     } else {
         size_t stop = 0, i = 0;
         int nread, nwritten;
+        struct linenoiseState saved;
 
         while(!stop) {
             /* Show completion or original buffer */
             if (i < lc.len) {
-                struct linenoiseState saved = *ls;
+                saved = *ls;
 
                 ls->len = ls->pos = strlen(lc.cvec[i]);
                 ls->buf = lc.cvec[i];
