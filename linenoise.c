@@ -107,6 +107,10 @@
 #include "lnHist.h"
 #include "lnCompl.h"
 
+extern int linenoiseEdit(struct lnTerminal *lnTerm, struct lnHistory *lnHist, 
+        linenoiseCompletionCallback *complCb,
+	char *buf, size_t buflen, const char *prompt);
+
 #define LINENOISE_MAX_LINE 4096
 static char *unsupported_term[] = {"dumb","cons25",NULL};
 static linenoiseCompletionCallback *completionCallback = NULL;

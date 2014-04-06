@@ -21,7 +21,25 @@
 #include "linenoise.h"
 
 extern int mlmode;
-extern linenoiseCompletionCallback *completionCallback;
+
+/* The linenoiseState structure represents the state during line editing.
+ * We pass this state to functions implementing specific editing
+ * functionalities. */
+struct linenoiseState {
+    struct lnTerminal *lnTerm;
+    struct lnHistory *lnHist;
+    linenoiseCompletionCallback *completionCallback;
+    char *buf;          /* Edited line buffer. */
+    size_t buflen;      /* Edited line buffer size. */
+    const char *prompt; /* Prompt to display. */
+    size_t plen;        /* Prompt length. */
+    size_t pos;         /* Current cursor position. */
+    size_t oldpos;      /* Previous refresh cursor position. */
+    size_t len;         /* Current edited line length. */
+    size_t cols;        /* Number of columns in terminal. */
+    size_t maxrows;     /* Maximum num of rows used so far (multiline mode) */
+    size_t history_index;
+};
 
 /* Single line low level line refresh.
  *
