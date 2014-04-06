@@ -39,12 +39,16 @@
 
 #include <sys/types.h>
 
+typedef struct lnComplVariants linenoiseCompletions;
+typedef void(linenoiseCompletionCallback)(const char *, linenoiseCompletions *);
+
 /* The linenoiseState structure represents the state during line editing.
  * We pass this state to functions implementing specific editing
  * functionalities. */
 struct linenoiseState {
     struct lnTerminal *lnTerm;
     struct lnHistory *lnHist;
+    linenoiseCompletionCallback *completionCallback;
     char *buf;          /* Edited line buffer. */
     size_t buflen;      /* Edited line buffer size. */
     const char *prompt; /* Prompt to display. */
@@ -58,11 +62,9 @@ struct linenoiseState {
 };
 
 int linenoiseEdit(struct lnTerminal *lnTerm, struct lnHistory *lnHist, 
+        linenoiseCompletionCallback *complCb,
 	char *buf, size_t buflen, const char *prompt);
 
-typedef struct lnComplVariants linenoiseCompletions;
-
-typedef void(linenoiseCompletionCallback)(const char *, linenoiseCompletions *);
 void linenoiseAddCompletion(linenoiseCompletions *, char *);
 void linenoiseSetCompletionCallback(linenoiseCompletionCallback *);
 

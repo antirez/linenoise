@@ -109,8 +109,7 @@
 
 #define LINENOISE_MAX_LINE 4096
 static char *unsupported_term[] = {"dumb","cons25",NULL};
-//XXX
-linenoiseCompletionCallback *completionCallback = NULL;
+static linenoiseCompletionCallback *completionCallback = NULL;
 
 static struct lnTerminal *linenoiseAtExitTerm;
 static struct lnHistory linenoiseHistory = { .max_len = LINENOISE_DEFAULT_HISTORY_MAX_LEN };
@@ -179,7 +178,7 @@ static int linenoiseRaw(char *buf, size_t buflen, const char *prompt) {
         atexit_init();
         if (lnTermSavePrepare(&lnTerm) == -1) return -1;
         linenoiseAtExitTerm = &lnTerm;
-        count = linenoiseEdit(&lnTerm, &linenoiseHistory, buf, buflen, prompt);
+        count = linenoiseEdit(&lnTerm, &linenoiseHistory, completionCallback, buf, buflen, prompt);
         linenoiseAtExitTerm = NULL;
         lnTermResotre(&lnTerm);
         lnTermWrite(&lnTerm, "\n", 1);

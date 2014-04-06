@@ -254,12 +254,14 @@ static void linenoiseEditDeletePrevWord(struct linenoiseState *l) {
 }
 
 static void linenoiseStateInit(struct linenoiseState *l, struct lnTerminal *lnTerm,
-	struct lnHistory *lnHist, char *buf, size_t buflen, const char *prompt) {
+	struct lnHistory *lnHist, linenoiseCompletionCallback complCb,
+        char *buf, size_t buflen, const char *prompt) {
 
     /* Populate the linenoise state that we pass to functions implementing
      * specific editing functionalities. */
     l->lnTerm = lnTerm;
     l->lnHist = lnHist;
+    l->completionCallback = complCb;
 
     l->buf = buf;
     l->buflen = buflen;
@@ -286,7 +288,7 @@ static int completeLine(struct linenoiseState *ls) {
     char c = 0;
 
     lnComplInit(&lnComplVars);
-    completionCallback(ls->buf,&lnComplVars);
+    ls->completionCallback(ls->buf,&lnComplVars);
 
     stop = 0;
     i = 0;
@@ -346,10 +348,11 @@ static int completeLine(struct linenoiseState *ls) {
  *
  * The function returns the length of the current buffer. */
 int linenoiseEdit(struct lnTerminal *lnTerm, struct lnHistory *lnHist, 
+        linenoiseCompletionCallback *complCb,
 	char *buf, size_t buflen, const char *prompt) {
     struct linenoiseState l;
 
-    linenoiseStateInit(&l, lnTerm, lnHist, buf, buflen, prompt);
+    linenoiseStateInit(&l, lnTerm, lnHist, complCb, buf, buflen, prompt);
 
     /* Buffer starts empty. */
     buf[0] = '\0';
@@ -368,7 +371,7 @@ int linenoiseEdit(struct lnTerminal *lnTerm, struct lnHistory *lnHist,
         /* Only autocomplete when the callback is set. It returns < 0 when
          * there was an error reading from fd. Otherwise it will return the
          * character that should be handled next. */
-        if (c == 9 && completionCallback != NULL) {
+        if (c == 9 && complCb != NULL) {
             c = completeLine(&l);
             /* Return on errors */
             if (c < 0) return l.len;
