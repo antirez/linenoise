@@ -418,6 +418,19 @@ void linenoiseAddCompletion(linenoiseCompletions *lc, const char *str) {
     lc->cvec[lc->len++] = copy;
 }
 
+/* Adds matching history entries as tab completions */
+void linenoiseAddHistoryCompletions(const char* buf, linenoiseCompletions *lc) {
+    int i;
+    size_t n;
+    if (history == NULL)
+        return;
+    n = strlen(buf);
+    for (i = 0; i < history_len; ++i)
+        if (strncasecmp(history[i], buf, n) == 0)
+            linenoiseAddCompletion(lc, history[i]);
+}
+
+
 /* =========================== Line editing ================================= */
 
 /* We define a very simple "append buffer" structure, that is an heap
