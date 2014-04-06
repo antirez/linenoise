@@ -13,13 +13,14 @@
 #include <string.h>
 #include <stdlib.h>
 #include <sys/types.h>
+
 #include "lnTerm.h"
 #include "lnHist.h"
+#include "lnCompl.h"
 
 #include "linenoise.h"
 
 extern int mlmode;
-extern int completeLine(struct linenoiseState *ls);
 extern linenoiseCompletionCallback *completionCallback;
 
 /* Single line low level line refresh.
@@ -146,8 +147,7 @@ static void refreshMultiLine(struct linenoiseState *l) {
 
 /* Calls the two low level functions refreshSingleLine() or
  * refreshMultiLine() according to the selected mode. */
-//XXX
-void refreshLine(struct linenoiseState *l) {
+static void refreshLine(struct linenoiseState *l) {
     if (mlmode)
         refreshMultiLine(l);
     else
@@ -272,6 +272,72 @@ static void linenoiseStateInit(struct linenoiseState *l, struct lnTerminal *lnTe
     l->maxrows = 0;
     l->history_index = lnHist->len;
 }
+
+/* This is an helper function for linenoiseEdit() and is called when the
+ * user types the <tab> key in order to complete the string currently in the
+ * input.
+ * 
+ * The state of the editing is encapsulated into the pointed linenoiseState
+ * structure as described in the structure definition. */
+static int completeLine(struct linenoiseState *ls) {
+    struct lnComplVariants lnComplVars;
+    int nread, nwritten;
+    int stop, i;
+    char c = 0;
+
+    lnComplInit(&lnComplVars);
+    completionCallback(ls->buf,&lnComplVars);
+
+    stop = 0;
+    i = 0;
+    while(!stop) {
+        const char *compl_line;
+
+        if ((compl_line = lnComplGet(&lnComplVars, i))) {
+            struct linenoiseState saved = *ls;
+
+            ls->buf = (char *) compl_line;
+            ls->len = ls->pos = strlen(compl_line);
+            refreshLine(ls);
+            ls->len = saved.len;
+            ls->pos = saved.pos;
+            ls->buf = saved.buf;
+        } else {
+            i = -1;
+            refreshLine(ls);
+            lnTermBeep(ls->lnTerm);
+        }
+
+        nread = lnTermRead(ls->lnTerm,&c,1);
+        if (nread <= 0) {
+            lnComplFree(&lnComplVars);
+            return -1;
+        }
+
+        switch(c) {
+            case 9: /* tab */
+                i++;
+                break;
+            case 27: /* escape */
+                /* Re-show original buffer */
+                if (i >= 0) refreshLine(ls);
+                stop = 1;
+                break;
+            default:
+                /* Update buffer and return */
+                if (i >= 0) {
+                    nwritten = snprintf(ls->buf,ls->buflen,"%s",lnComplGet(&lnComplVars, i));
+                    ls->len = ls->pos = nwritten;
+                }
+                stop = 1;
+                break;
+        }
+    }
+
+    lnComplFree(&lnComplVars);
+    return c; /* Return last read character */
+}
+
 
 /* This function is the core of the line editing capability of linenoise.
  *

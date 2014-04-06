@@ -57,17 +57,14 @@ struct linenoiseState {
     size_t history_index;
 };
 
-typedef struct linenoiseCompletions {
-  size_t len;
-  char **cvec;
-} linenoiseCompletions;
-
 int linenoiseEdit(struct lnTerminal *lnTerm, struct lnHistory *lnHist, 
 	char *buf, size_t buflen, const char *prompt);
 
+typedef struct lnComplVariants linenoiseCompletions;
+
 typedef void(linenoiseCompletionCallback)(const char *, linenoiseCompletions *);
-void linenoiseSetCompletionCallback(linenoiseCompletionCallback *);
 void linenoiseAddCompletion(linenoiseCompletions *, char *);
+void linenoiseSetCompletionCallback(linenoiseCompletionCallback *);
 
 char *linenoise(const char *prompt);
 int linenoiseHistoryAdd(const char *line);
