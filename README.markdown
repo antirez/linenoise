@@ -7,7 +7,7 @@ MongoDB, and Android.
 * Experimental multi-line editing mode.
 * History handling.
 * Completion.
-* Under 1,000 lines of BSD license source code.
+* About 1,100 lines of BSD license source code.
 
 ## Can a line editing library be 20k lines of code?
 
