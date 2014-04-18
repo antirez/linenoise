@@ -28,7 +28,7 @@ Apparently almost every terminal you can happen to use today has some kind of su
 
 Since it's so young I guess there are a few bugs, or the lib may not compile or work with some operating system, but it's a matter of a few weeks and eventually we'll get it right, and there will be no excuses for not shipping command line tools without built-in line editing support.
 
-The library is currently less than 1000 lines of code. In order to use it in your project just look at the *example.c* file in the source distribution, it is trivial. Linenoise is BSD code, so you can use both in free software and commercial software.
+The library is currently about 1100 lines of code. In order to use it in your project just look at the *example.c* file in the source distribution, it is trivial. Linenoise is BSD code, so you can use both in free software and commercial software.
 
 ## Tested with...
 
