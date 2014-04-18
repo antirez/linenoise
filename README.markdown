@@ -3,8 +3,7 @@
 A minimal, zero-config, BSD licensed, readline replacement used in Redis,
 MongoDB, and Android.
 
-* Single line editing mode with the usual key bindings implemented.
-* Experimental multi-line editing mode.
+* Single and multi line editing mode with the usual key bindings implemented.
 * History handling.
 * Completion.
 * About 1,100 lines of BSD license source code.
