@@ -619,6 +619,41 @@ void linenoiseEditMoveRight(struct linenoiseState *l) {
     }
 }
 
+/* Move word to the left */
+void linenoiseEditMoveLeftWord(struct linenoiseState *l) {
+    if (l->pos == 0)
+	return;
+
+    l->pos--;
+
+    while (l->pos > 0 && l->buf[l->pos] == ' ')
+	l->pos--;
+
+    while (l->pos > 0  && l->buf[l->pos] != ' ')
+	l->pos--;
+
+    if (l->buf[l->pos] == ' ')
+	l->pos++;
+
+    refreshLine(l);
+}
+
+/* Move word to the right */
+void linenoiseEditMoveRightWord(struct linenoiseState *l) {
+    if (l->pos == l->len)
+	return;
+
+    l->pos++;
+
+    while (l->pos != l->len && l->buf[l->pos] == ' ')
+	l->pos++;
+
+    while (l->pos != l->len && l->buf[l->pos] != ' ')
+	l->pos++;
+
+    refreshLine(l);
+}
+
 /* Move cursor to the start of the line. */
 void linenoiseEditMoveHome(struct linenoiseState *l) {
     if (l->pos != 0) {
@@ -797,14 +832,13 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
             linenoiseEditHistoryNext(&l, LINENOISE_HISTORY_NEXT);
             break;
         case ESC:    /* escape sequence */
-            /* Read the next two bytes representing the escape sequence.
-             * Use two calls to handle slow terminals returning the two
-             * chars at different times. */
+	    /* Use first byte following ESC to determine if additional
+	     * reads are necessary */
             if (read(l.ifd,seq,1) == -1) break;
-            if (read(l.ifd,seq+1,1) == -1) break;
 
-            /* ESC [ sequences. */
+            /* ESC [ sequences. Additional 2 or 3 bytes */
             if (seq[0] == '[') {
+		if (read(l.ifd,seq+1,1) == -1) break;
                 if (seq[1] >= '0' && seq[1] <= '9') {
                     /* Extended escape, read additional byte. */
                     if (read(l.ifd,seq+2,1) == -1) break;
@@ -839,8 +873,9 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
                 }
             }
 
-            /* ESC O sequences. */
+            /* ESC O sequences. 2 bytes */
             else if (seq[0] == 'O') {
+		if (read(l.ifd,seq+1,1) == -1) break;
                 switch(seq[1]) {
                 case 'H': /* Home */
                     linenoiseEditMoveHome(&l);
@@ -850,6 +885,22 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
                     break;
                 }
             }
+
+	    /* ESC single byte */
+	    else {
+		switch(seq[0]) {
+		case 'b':
+		    linenoiseEditMoveLeftWord(&l);
+		    break;
+		case 'f':
+		    linenoiseEditMoveRightWord(&l);
+		    break;
+		default:
+		    /* not handled */
+		    break;
+		}
+	    }
+
             break;
         default:
             if (linenoiseEditInsert(&l,c)) return -1;
