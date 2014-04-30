@@ -35,8 +35,8 @@
  */
 
 
-#ifndef LINENOISE_HIST_H_
-#define LINENOISE_HIST_H_
+#ifndef __LINENOISE_HIST_H
+#define __LINENOISE_HIST_H
 
 #include <sys/types.h>
 
@@ -57,5 +57,5 @@ extern int lnHistGet(struct lnHistory *lnHist, size_t ind, char *buf, size_t len
 extern int lnHistSetMaxLen(struct lnHistory *lnHist, size_t len);
 extern void lnHistDeinit(struct lnHistory *lnHist);
 
-#endif /* LINENOISE_HIST_H_ */
+#endif /* __LINENOISE_HIST_H */
 

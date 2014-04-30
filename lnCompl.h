@@ -35,8 +35,8 @@
  */
 
 
-#ifndef LN_COMPL_H_
-#define LN_COMPL_H_
+#ifndef __LINENOISE_COMPL_H
+#define __LINENOISE_COMPL_H
 
 struct lnComplVariants {
   size_t len;
@@ -50,5 +50,5 @@ extern void lnComplAdd(struct lnComplVariants *lnComplVars, const char *str);
 extern void lnComplFree(struct lnComplVariants *lnComplVars);
 extern const char *lnComplGet(struct lnComplVariants *lnComplVars, int n);
 
-#endif /* LN_COMPL_H_ */
+#endif /* __LINENOISE_COMPL_H */
 
