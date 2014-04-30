@@ -18,8 +18,6 @@
 #include "lnHist.h"
 #include "lnCompl.h"
 
-#include "linenoise.h"
-
 extern int mlmode;
 
 /* The linenoiseState structure represents the state during line editing.
@@ -28,7 +26,7 @@ extern int mlmode;
 struct linenoiseState {
     struct lnTerminal *lnTerm;
     struct lnHistory *lnHist;
-    linenoiseCompletionCallback *completionCallback;
+    lnComplCallback_t lnComplCb;
     char *buf;          /* Edited line buffer. */
     size_t buflen;      /* Edited line buffer size. */
     const char *prompt; /* Prompt to display. */
@@ -272,14 +270,14 @@ static void linenoiseEditDeletePrevWord(struct linenoiseState *l) {
 }
 
 static void linenoiseStateInit(struct linenoiseState *l, struct lnTerminal *lnTerm,
-	struct lnHistory *lnHist, linenoiseCompletionCallback complCb,
+	struct lnHistory *lnHist, lnComplCallback_t lnComplCb,
         char *buf, size_t buflen, const char *prompt) {
 
     /* Populate the linenoise state that we pass to functions implementing
      * specific editing functionalities. */
     l->lnTerm = lnTerm;
     l->lnHist = lnHist;
-    l->completionCallback = complCb;
+    l->lnComplCb = lnComplCb;
 
     l->buf = buf;
     l->buflen = buflen;
@@ -306,7 +304,7 @@ static int completeLine(struct linenoiseState *ls) {
     char c = 0;
 
     lnComplInit(&lnComplVars);
-    ls->completionCallback(ls->buf,&lnComplVars);
+    ls->lnComplCb(&lnComplVars, ls->buf);
 
     stop = 0;
     i = 0;
@@ -366,11 +364,11 @@ static int completeLine(struct linenoiseState *ls) {
  *
  * The function returns the length of the current buffer. */
 int linenoiseEdit(struct lnTerminal *lnTerm, struct lnHistory *lnHist, 
-        linenoiseCompletionCallback *complCb,
+        lnComplCallback_t lnComplCb,
 	char *buf, size_t buflen, const char *prompt) {
     struct linenoiseState l;
 
-    linenoiseStateInit(&l, lnTerm, lnHist, complCb, buf, buflen, prompt);
+    linenoiseStateInit(&l, lnTerm, lnHist, lnComplCb, buf, buflen, prompt);
 
     /* Buffer starts empty. */
     buf[0] = '\0';
@@ -389,7 +387,7 @@ int linenoiseEdit(struct lnTerminal *lnTerm, struct lnHistory *lnHist,
         /* Only autocomplete when the callback is set. It returns < 0 when
          * there was an error reading from fd. Otherwise it will return the
          * character that should be handled next. */
-        if (c == 9 && complCb != NULL) {
+        if (c == 9 && lnComplCb != NULL) {
             c = completeLine(&l);
             /* Return on errors */
             if (c < 0) return l.len;

@@ -14,6 +14,8 @@ struct lnComplVariants {
   char **cvec;
 };
 
+typedef void (*lnComplCallback_t)(struct lnComplVariants *lnComplVars, const char *input);
+
 extern void lnComplInit(struct lnComplVariants *lnComplVars);
 extern void lnComplAdd(struct lnComplVariants *lnComplVars, const char *str);
 extern void lnComplFree(struct lnComplVariants *lnComplVars);

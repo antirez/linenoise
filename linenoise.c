@@ -108,8 +108,8 @@
 #include "lnCompl.h"
 
 extern int linenoiseEdit(struct lnTerminal *lnTerm, struct lnHistory *lnHist, 
-        linenoiseCompletionCallback *complCb,
-	char *buf, size_t buflen, const char *prompt);
+        lnComplCallback_t lnComplCb,
+    char *buf, size_t buflen, const char *prompt);
 
 #define LINENOISE_MAX_LINE 4096
 static char *unsupported_term[] = {"dumb","cons25",NULL};
@@ -153,13 +153,19 @@ static void atexit_init(void) {
  * the choices were already shown. */
 /* ============================== Completion ================================ */
 void linenoiseAddCompletion(linenoiseCompletions *lc, char *str) {
-	lnComplAdd(lc, str);
+    lnComplAdd(lc, str);
 }
 
 /* Register a callback function to be called for tab-completion. */
 void linenoiseSetCompletionCallback(linenoiseCompletionCallback *fn) {
     completionCallback = fn;
 }
+
+static void linenoiseCompletionWrapperCb(struct lnComplVariants *lnComplVars, 
+        const char *input) {
+    completionCallback(input, lnComplVars);
+}
+
 /* =========================== Line editing ================================= */
 /* This function calls the line editing function linenoiseEdit() using
  * the STDIN file descriptor set in raw mode. */
@@ -182,7 +188,9 @@ static int linenoiseRaw(char *buf, size_t buflen, const char *prompt) {
         atexit_init();
         if (lnTermSavePrepare(&lnTerm) == -1) return -1;
         linenoiseAtExitTerm = &lnTerm;
-        count = linenoiseEdit(&lnTerm, &linenoiseHistory, completionCallback, buf, buflen, prompt);
+        count = linenoiseEdit(&lnTerm, &linenoiseHistory, 
+            linenoiseCompletionWrapperCb, 
+            buf, buflen, prompt);
         linenoiseAtExitTerm = NULL;
         lnTermResotre(&lnTerm);
         lnTermWrite(&lnTerm, "\n", 1);
