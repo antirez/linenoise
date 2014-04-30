@@ -101,15 +101,13 @@
 #include <string.h>
 #include <stdlib.h>
 #include <sys/types.h>
-#include "linenoise.h"
 
 #include "lnTerm.h"
 #include "lnHist.h"
 #include "lnCompl.h"
+#include "lnCore.h"
 
-extern int linenoiseEdit(struct lnTerminal *lnTerm, struct lnHistory *lnHist, 
-        lnComplCallback_t lnComplCb,
-    char *buf, size_t buflen, const char *prompt);
+#include "linenoise.h"
 
 #define LINENOISE_MAX_LINE 4096
 static char *unsupported_term[] = {"dumb","cons25",NULL};
@@ -190,7 +188,7 @@ static int linenoiseRaw(char *buf, size_t buflen, const char *prompt) {
         linenoiseAtExitTerm = &lnTerm;
         count = linenoiseEdit(&lnTerm, &linenoiseHistory, 
             linenoiseCompletionWrapperCb, 
-            buf, buflen, prompt);
+            prompt, mlmode ? LN_MULTILINE : 0, buf, buflen);
         linenoiseAtExitTerm = NULL;
         lnTermResotre(&lnTerm);
         lnTermWrite(&lnTerm, "\n", 1);

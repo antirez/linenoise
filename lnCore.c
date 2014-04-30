@@ -18,7 +18,7 @@
 #include "lnHist.h"
 #include "lnCompl.h"
 
-extern int mlmode;
+#include "lnCore.h"
 
 /* The linenoiseState structure represents the state during line editing.
  * We pass this state to functions implementing specific editing
@@ -37,6 +37,7 @@ struct linenoiseState {
     size_t cols;        /* Number of columns in terminal. */
     size_t maxrows;     /* Maximum num of rows used so far (multiline mode) */
     size_t history_index;
+    int opt;
 };
 
 /* Single line low level line refresh.
@@ -164,7 +165,7 @@ static void refreshMultiLine(struct linenoiseState *l) {
 /* Calls the two low level functions refreshSingleLine() or
  * refreshMultiLine() according to the selected mode. */
 static void refreshLine(struct linenoiseState *l) {
-    if (mlmode)
+    if (l->opt & LN_MULTILINE)
         refreshMultiLine(l);
     else
         refreshSingleLine(l);
@@ -180,7 +181,7 @@ static int linenoiseEditInsert(struct linenoiseState *l, char c) {
             l->pos++;
             l->len++;
             l->buf[l->len] = '\0';
-            if ((!mlmode && l->plen+l->len < l->cols) /* || mlmode */) {
+            if ((!(l->opt & LN_MULTILINE) && l->plen+l->len < l->cols) /* || mlmode */) {
                 /* Avoid a full update of the line in the
                  * trivial case. */
                 if (lnTermWrite(l->lnTerm, &c, 1) == -1) return -1;
@@ -271,7 +272,7 @@ static void linenoiseEditDeletePrevWord(struct linenoiseState *l) {
 
 static void linenoiseStateInit(struct linenoiseState *l, struct lnTerminal *lnTerm,
 	struct lnHistory *lnHist, lnComplCallback_t lnComplCb,
-        char *buf, size_t buflen, const char *prompt) {
+        const char *prompt, int opt, char *buf, size_t buflen) {
 
     /* Populate the linenoise state that we pass to functions implementing
      * specific editing functionalities. */
@@ -289,6 +290,8 @@ static void linenoiseStateInit(struct linenoiseState *l, struct lnTerminal *lnTe
     l->cols = lnTermGetColumns(lnTerm);
     l->maxrows = 0;
     l->history_index = lnHist->len;
+
+    l->opt = opt;
 }
 
 /* This is an helper function for linenoiseEdit() and is called when the
@@ -365,10 +368,10 @@ static int completeLine(struct linenoiseState *ls) {
  * The function returns the length of the current buffer. */
 int linenoiseEdit(struct lnTerminal *lnTerm, struct lnHistory *lnHist, 
         lnComplCallback_t lnComplCb,
-	char *buf, size_t buflen, const char *prompt) {
+        const char *prompt, int opt, char *buf, size_t buflen) {
     struct linenoiseState l;
 
-    linenoiseStateInit(&l, lnTerm, lnHist, lnComplCb, buf, buflen, prompt);
+    linenoiseStateInit(&l, lnTerm, lnHist, lnComplCb, prompt, opt, buf, buflen);
 
     /* Buffer starts empty. */
     buf[0] = '\0';
