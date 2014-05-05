@@ -619,40 +619,42 @@ void linenoiseEditMoveRight(struct linenoiseState *l) {
     }
 }
 
-/* Move word to the left */
+
+static int isWordSep(int ch) {
+    return !isalnum(ch);
+}
+
 void linenoiseEditMoveLeftWord(struct linenoiseState *l) {
-    if (l->pos == 0)
-	return;
+    if (l->pos == 0) return;
 
     l->pos--;
 
-    while (l->pos > 0 && l->buf[l->pos] == ' ')
+    while (l->pos > 0 && isWordSep(l->buf[l->pos]))
 	l->pos--;
 
-    while (l->pos > 0  && l->buf[l->pos] != ' ')
+    while (l->pos > 0 && !isWordSep(l->buf[l->pos]))
 	l->pos--;
 
-    if (l->buf[l->pos] == ' ')
-	l->pos++;
+    if (isWordSep(l->buf[l->pos])) l->pos++;
 
     refreshLine(l);
 }
 
 /* Move word to the right */
 void linenoiseEditMoveRightWord(struct linenoiseState *l) {
-    if (l->pos == l->len)
-	return;
+    if (l->pos == l->len) return;
 
     l->pos++;
 
-    while (l->pos != l->len && l->buf[l->pos] == ' ')
+    while (l->pos != l->len && isWordSep(l->buf[l->pos]))
 	l->pos++;
 
-    while (l->pos != l->len && l->buf[l->pos] != ' ')
+    while (l->pos != l->len && !isWordSep(l->buf[l->pos]))
 	l->pos++;
 
     refreshLine(l);
 }
+
 
 /* Move cursor to the start of the line. */
 void linenoiseEditMoveHome(struct linenoiseState *l) {
