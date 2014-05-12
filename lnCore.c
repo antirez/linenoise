@@ -309,6 +309,7 @@ static void linenoiseStateInit(struct linenoiseState *l, struct lnTerminal *lnTe
      * specific editing functionalities. */
     l->lnTerm = lnTerm;
     l->lnHist = lnHist;
+    l->lnComplVars = lnCompl;
     l->lnComplCb = lnComplCb;
 
     l->buf = buf;
