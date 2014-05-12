@@ -102,11 +102,9 @@
 #include <stdlib.h>
 #include <sys/types.h>
 
-#include "lnTerm.h"
-#include "lnHist.h"
-#include "lnCompl.h"
 #include "lnCore.h"
 
+#include "lnTermPosix.h"
 #include "linenoise.h"
 
 #define LINENOISE_MAX_LINE 4096

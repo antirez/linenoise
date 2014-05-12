@@ -44,6 +44,7 @@
 #include <stdarg.h>
 
 #include "lnTerm.h"
+#include "lnTermPosix.h"
 
 /* Raw mode: 1960 magic shit. */
 int lnTermSavePrepare(struct lnTerminal *lnTerm) {
