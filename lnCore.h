@@ -47,6 +47,7 @@
 extern int linenoiseEdit(
 		struct lnTerminal *lnTerm, 
 		struct lnHistory *lnHist, 
+		struct lnComplVariants *lnCompl, 
 		lnComplCallback_t lnComplCb,
 		const char *prompt, 
 		int opt, 

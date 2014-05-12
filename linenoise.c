@@ -106,6 +106,7 @@
 
 #include "lnTermPosix.h"
 #include "lnHistImpl.h"
+#include "lnComplImpl.h"
 #include "linenoise.h"
 
 #define LINENOISE_MAX_LINE 4096
@@ -167,6 +168,7 @@ static void linenoiseCompletionWrapperCb(struct lnComplVariants *lnComplVars,
  * the STDIN file descriptor set in raw mode. */
 static int linenoiseRaw(char *buf, size_t buflen, const char *prompt) {
     struct lnTerminal lnTerm;
+    struct lnComplVariants lnComplVars;
     int count;
 
     if (buflen == 0) {
@@ -184,7 +186,7 @@ static int linenoiseRaw(char *buf, size_t buflen, const char *prompt) {
         atexit_init();
         if (lnTermSavePrepare(&lnTerm) == -1) return -1;
         linenoiseAtExitTerm = &lnTerm;
-        count = linenoiseEdit(&lnTerm, &linenoiseHistory, 
+        count = linenoiseEdit(&lnTerm, &linenoiseHistory, &lnComplVars,
             linenoiseCompletionWrapperCb, 
             prompt, mlmode ? LN_MULTILINE : 0, buf, buflen);
         linenoiseAtExitTerm = NULL;

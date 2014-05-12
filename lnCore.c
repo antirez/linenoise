@@ -55,6 +55,7 @@
 struct linenoiseState {
     struct lnTerminal *lnTerm;
     struct lnHistory *lnHist;
+    struct lnComplVariants *lnComplVars;
     lnComplCallback_t lnComplCb;
     char *buf;          /* Edited line buffer. */
     size_t buflen;      /* Edited line buffer size. */
@@ -300,8 +301,9 @@ static void linenoiseEditDeletePrevWord(struct linenoiseState *l) {
 }
 
 static void linenoiseStateInit(struct linenoiseState *l, struct lnTerminal *lnTerm,
-	struct lnHistory *lnHist, lnComplCallback_t lnComplCb,
-        const char *prompt, int opt, char *buf, size_t buflen) {
+	struct lnHistory *lnHist, struct lnComplVariants *lnCompl, 
+	lnComplCallback_t lnComplCb, const char *prompt, int opt, 
+	char *buf, size_t buflen) {
 
     /* Populate the linenoise state that we pass to functions implementing
      * specific editing functionalities. */
@@ -330,20 +332,20 @@ static void linenoiseStateInit(struct linenoiseState *l, struct lnTerminal *lnTe
  * The state of the editing is encapsulated into the pointed linenoiseState
  * structure as described in the structure definition. */
 static int completeLine(struct linenoiseState *ls) {
-    struct lnComplVariants lnComplVars;
+    struct lnComplVariants *lnComplVars = ls->lnComplVars;
     int nread, nwritten;
     int stop, i;
     char c = 0;
 
-    lnComplInit(&lnComplVars);
-    ls->lnComplCb(&lnComplVars, ls->buf);
+    lnComplInit(lnComplVars);
+    ls->lnComplCb(lnComplVars, ls->buf);
 
     stop = 0;
     i = 0;
     while(!stop) {
         const char *compl_line;
 
-        if ((compl_line = lnComplGet(&lnComplVars, i))) {
+        if ((compl_line = lnComplGet(lnComplVars, i))) {
             struct linenoiseState saved = *ls;
 
             ls->buf = (char *) compl_line;
@@ -360,7 +362,7 @@ static int completeLine(struct linenoiseState *ls) {
 
         nread = lnTermRead(ls->lnTerm,&c,1);
         if (nread <= 0) {
-            lnComplFree(&lnComplVars);
+            lnComplFree(lnComplVars);
             return -1;
         }
 
@@ -376,7 +378,7 @@ static int completeLine(struct linenoiseState *ls) {
             default:
                 /* Update buffer and return */
                 if (i >= 0) {
-                    nwritten = snprintf(ls->buf,ls->buflen,"%s",lnComplGet(&lnComplVars, i));
+                    nwritten = snprintf(ls->buf,ls->buflen,"%s",lnComplGet(lnComplVars, i));
                     ls->len = ls->pos = nwritten;
                 }
                 stop = 1;
@@ -384,7 +386,7 @@ static int completeLine(struct linenoiseState *ls) {
         }
     }
 
-    lnComplFree(&lnComplVars);
+    lnComplFree(lnComplVars);
     return c; /* Return last read character */
 }
 
@@ -396,11 +398,12 @@ static int completeLine(struct linenoiseState *ls) {
  *
  * The function returns the length of the current buffer. */
 int linenoiseEdit(struct lnTerminal *lnTerm, struct lnHistory *lnHist, 
-        lnComplCallback_t lnComplCb,
+        struct lnComplVariants *lnCompl, lnComplCallback_t lnComplCb,
         const char *prompt, int opt, char *buf, size_t buflen) {
     struct linenoiseState l;
 
-    linenoiseStateInit(&l, lnTerm, lnHist, lnComplCb, prompt, opt, buf, buflen);
+    linenoiseStateInit(&l, lnTerm, lnHist, lnCompl, lnComplCb, 
+		    prompt, opt, buf, buflen);
 
     /* Buffer starts empty. */
     buf[0] = '\0';

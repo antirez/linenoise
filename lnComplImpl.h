@@ -35,40 +35,14 @@
  */
 
 
-#include <stdlib.h>
-#include <string.h>
+#ifndef __LINENOISE_COMPL_IMPL_H
+#define __LINENOISE_COMPL_IMPL_H
 
-#include "lnCompl.h"
-#include "lnComplImpl.h"
+struct lnComplVariants {
+  size_t len;
+  char **cvec;
+};
 
-void lnComplInit(struct lnComplVariants *lnComplVars) {
-	lnComplVars->len = 0;
-	lnComplVars->cvec = NULL;
-}
+#endif /* __LINENOISE_COMPL_IMPL_H */
 
-/* This function is used by the callback function registered by the user
- * in order to add completion options given the input string when the
- * user typed <tab>. See the example.c source code for a very easy to
- * understand example. */
-void lnComplAdd(struct lnComplVariants *lnComplVars, const char *str) {
-    size_t len = strlen(str);
-    char *copy = malloc(len+1);
-    memcpy(copy,str,len+1);
-    lnComplVars->cvec = realloc(lnComplVars->cvec,sizeof(char*)*(lnComplVars->len+1));
-    lnComplVars->cvec[lnComplVars->len++] = copy;
-}
 
-void lnComplFree(struct lnComplVariants *lnComplVars) {
-    size_t i;
-    for (i = 0; i < lnComplVars->len; i++)
-        free(lnComplVars->cvec[i]);
-    if (lnComplVars->cvec != NULL)
-        free(lnComplVars->cvec);
-}
-
-const char *lnComplGet(struct lnComplVariants *lnComplVars, int n) {
-	if (n < 0 || n >= lnComplVars->len)
-		return NULL;
-
-	return lnComplVars->cvec[n];
-}

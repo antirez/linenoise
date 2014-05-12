@@ -38,10 +38,7 @@
 #ifndef __LINENOISE_COMPL_H
 #define __LINENOISE_COMPL_H
 
-struct lnComplVariants {
-  size_t len;
-  char **cvec;
-};
+struct lnComplVariants;
 
 typedef void (*lnComplCallback_t)(struct lnComplVariants *lnComplVars, const char *input);
 
