@@ -254,7 +254,7 @@ static void linenoiseEditHistoryNext(struct linenoiseState *l, int dir) {
     int len;
 
     if (0 <= (len = lnHistGet(l->lnHist, l->history_index + d, l->buf, l->buflen))
-            || (len = 0, l->history_index + d == l->lnHist->len)) {
+            || (len = 0, l->history_index + d == lnHistLen(l->lnHist))) {
         l->history_index += d;
         l->len = l->pos = len;
     }
@@ -318,7 +318,7 @@ static void linenoiseStateInit(struct linenoiseState *l, struct lnTerminal *lnTe
     l->len = 0;
     l->cols = lnTermGetColumns(lnTerm);
     l->maxrows = 0;
-    l->history_index = lnHist->len;
+    l->history_index = lnHistLen(lnHist);
 
     l->opt = opt;
 }

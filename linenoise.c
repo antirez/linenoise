@@ -105,6 +105,7 @@
 #include "lnCore.h"
 
 #include "lnTermPosix.h"
+#include "lnHistImpl.h"
 #include "linenoise.h"
 
 #define LINENOISE_MAX_LINE 4096

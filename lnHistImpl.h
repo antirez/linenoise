@@ -35,22 +35,20 @@
  */
 
 
-#ifndef __LINENOISE_HIST_H
-#define __LINENOISE_HIST_H
+#ifndef __LINENOISE_HIST_IMPL_H
+#define __LINENOISE_HIST_IMPL_H
 
 #include <sys/types.h>
 
 #define LN_HIST_SEEK_SET 0
 #define LN_HIST_SEEK_CUR 1
 
-struct lnHistory;
+#define LINENOISE_DEFAULT_HISTORY_MAX_LEN 100
 
-extern int lnHistInit(struct lnHistory *lnHist);
-extern int lnHistAddTail(struct lnHistory *lnHist, const char *line);
-extern int lnHistGet(struct lnHistory *lnHist, size_t ind, char *buf, size_t len);
-extern int lnHistLen(struct lnHistory *lnHist);
-extern int lnHistSetMaxLen(struct lnHistory *lnHist, size_t len);
-extern void lnHistDeinit(struct lnHistory *lnHist);
+struct lnHistory { 
+    int max_len;
+    char **history;
+    int len;
+};
 
-#endif /* __LINENOISE_HIST_H */
-
+#endif /* __LINENOISE_HIST_IMPL_H */

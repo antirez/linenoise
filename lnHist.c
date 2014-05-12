@@ -40,6 +40,7 @@
 #include <stdlib.h>
 
 #include "lnHist.h"
+#include "lnHistImpl.h"
 
 int lnHistInit(struct lnHistory *lnHist) {
     lnHist->max_len = LINENOISE_DEFAULT_HISTORY_MAX_LEN;
@@ -85,6 +86,10 @@ int lnHistGet(struct lnHistory *lnHist, size_t ind, char *buf, size_t len) {
     strncpy(buf, lnHist->history[ind], len);
     ret = strlen(lnHist->history[ind]);
     return ret < len ? ret : len;
+}
+
+int lnHistLen(struct lnHistory *lnHist) {
+	return lnHist->len;
 }
 
 int lnHistSetMaxLen(struct lnHistory *lnHist, size_t len) {
