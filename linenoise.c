@@ -115,8 +115,7 @@ static linenoiseCompletionCallback *completionCallback = NULL;
 
 static struct lnTerminal *linenoiseAtExitTerm;
 static struct lnHistory linenoiseHistory = { .max_len = LINENOISE_DEFAULT_HISTORY_MAX_LEN };
-//XXX
-int mlmode = 0;  /* Multi line mode. Default is single line. */
+static int mlmode = 0;  /* Multi line mode. Default is single line. */
 static int atexit_registered = 0; /* Register atexit just 1 time. */
 
 static void linenoiseAtExit(void);
