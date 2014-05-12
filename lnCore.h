@@ -44,6 +44,8 @@
 
 #define LN_MULTILINE 0x01
 
+typedef void (*lnComplCallback_t)(struct lnComplVariants *lnComplVars, const char *input);
+
 extern int linenoiseEdit(
 		struct lnTerminal *lnTerm, 
 		struct lnHistory *lnHist, 

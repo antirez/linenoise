@@ -40,9 +40,6 @@
 
 #include <sys/types.h>
 
-#define LN_HIST_SEEK_SET 0
-#define LN_HIST_SEEK_CUR 1
-
 struct lnHistory;
 
 extern int lnHistInit(struct lnHistory *lnHist);
