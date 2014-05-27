@@ -632,10 +632,8 @@ void linenoiseEditMoveLeftWord(struct linenoiseState *l) {
     while (l->pos > 0 && isWordSep(l->buf[l->pos]))
 	l->pos--;
 
-    while (l->pos > 0 && !isWordSep(l->buf[l->pos]))
+    while (l->pos > 0 && !isWordSep(l->buf[l->pos-1]))
 	l->pos--;
-
-    if (isWordSep(l->buf[l->pos])) l->pos++;
 
     refreshLine(l);
 }
