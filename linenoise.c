@@ -89,14 +89,15 @@
  *    Sequence: ESC [ n B
  *    Effect: moves cursor down of n chars.
  *
- * The following are used to clear the screen: ESC [ H ESC [ 2 J
- * This is actually composed of two sequences:
+ * When linenoiseClearScreen() is called, two additional escape sequences
+ * are used in order to clear the screen and position the cursor at home
+ * position.
  *
- * cursorhome
+ * CUP (Cursor position)
  *    Sequence: ESC [ H
  *    Effect: moves the cursor to upper left corner
  *
- * ED2 (Clear entire screen)
+ * ED (Erase display)
  *    Sequence: ESC [ 2 J
  *    Effect: clear the whole screen
  *
