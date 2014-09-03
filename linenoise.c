@@ -505,6 +505,7 @@ static void refreshMultiLine(struct linenoiseState *l) {
     int rows = (plen+l->len+l->cols-1)/l->cols; /* rows used by current buf. */
     int rpos = (plen+l->oldpos+l->cols)/l->cols; /* cursor relative row. */
     int rpos2; /* rpos after refresh. */
+    int col; /* colum position, zero-based. */
     int old_rows = l->maxrows;
     int fd = l->ofd, j;
     struct abuf ab;
@@ -563,8 +564,12 @@ static void refreshMultiLine(struct linenoiseState *l) {
     }
 
     /* Set column. */
-    lndebug("set col %d", 1+((plen+(int)l->pos) % (int)l->cols));
-    snprintf(seq,64,"\x1b[999D\x1b[%dC", (plen+(int)l->pos) % (int)l->cols);
+    col = (plen+(int)l->pos) % (int)l->cols;
+    lndebug("set col %d", 1+col);
+    if (col)
+        snprintf(seq,64,"\x1b[999D\x1b[%dC", col);
+    else
+        snprintf(seq,64,"\x1b[999D");
     abAppend(&ab,seq,strlen(seq));
 
     lndebug("\n");
