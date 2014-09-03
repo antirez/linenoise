@@ -480,7 +480,7 @@ static void refreshSingleLine(struct linenoiseState *l) {
 
     abInit(&ab);
     /* Cursor to left edge */
-    snprintf(seq,64,"\x1b[999D");
+    snprintf(seq,64,"\r");
     abAppend(&ab,seq,strlen(seq));
     /* Write the prompt and the current buffer content */
     abAppend(&ab,l->prompt,strlen(l->prompt));
@@ -489,7 +489,7 @@ static void refreshSingleLine(struct linenoiseState *l) {
     snprintf(seq,64,"\x1b[0K");
     abAppend(&ab,seq,strlen(seq));
     /* Move cursor to original position. */
-    snprintf(seq,64,"\x1b[999D\x1b[%dC", (int)(pos+plen));
+    snprintf(seq,64,"\r\x1b[%dC", (int)(pos+plen));
     abAppend(&ab,seq,strlen(seq));
     if (write(fd,ab.b,ab.len) == -1) {} /* Can't recover from write error. */
     abFree(&ab);
@@ -525,13 +525,13 @@ static void refreshMultiLine(struct linenoiseState *l) {
     /* Now for every row clear it, go up. */
     for (j = 0; j < old_rows-1; j++) {
         lndebug("clear+up");
-        snprintf(seq,64,"\x1b[999D\x1b[0K\x1b[1A");
+        snprintf(seq,64,"\r\x1b[0K\x1b[1A");
         abAppend(&ab,seq,strlen(seq));
     }
 
     /* Clean the top line. */
     lndebug("clear");
-    snprintf(seq,64,"\x1b[999D\x1b[0K");
+    snprintf(seq,64,"\r\x1b[0K");
     abAppend(&ab,seq,strlen(seq));
 
     /* Write the prompt and the current buffer content */
@@ -546,7 +546,7 @@ static void refreshMultiLine(struct linenoiseState *l) {
     {
         lndebug("<newline>");
         abAppend(&ab,"\n",1);
-        snprintf(seq,64,"\x1b[999D");
+        snprintf(seq,64,"\r");
         abAppend(&ab,seq,strlen(seq));
         rows++;
         if (rows > (int)l->maxrows) l->maxrows = rows;
@@ -567,9 +567,9 @@ static void refreshMultiLine(struct linenoiseState *l) {
     col = (plen+(int)l->pos) % (int)l->cols;
     lndebug("set col %d", 1+col);
     if (col)
-        snprintf(seq,64,"\x1b[999D\x1b[%dC", col);
+        snprintf(seq,64,"\r\x1b[%dC", col);
     else
-        snprintf(seq,64,"\x1b[999D");
+        snprintf(seq,64,"\r");
     abAppend(&ab,seq,strlen(seq));
 
     lndebug("\n");
@@ -918,7 +918,7 @@ void linenoisePrintKeyCodes(void) {
 
         printf("'%c' %02x (%d) (type quit to exit)\n",
             isprint(c) ? c : '?', (int)c, (int)c);
-        printf("\x1b[999D"); /* Go left edge manually, we are in raw mode. */
+        printf("\r"); /* Go left edge manually, we are in raw mode. */
         fflush(stdout);
     }
     disableRawMode(STDIN_FILENO);
