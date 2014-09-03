@@ -771,6 +771,7 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
         case ENTER:    /* enter */
             history_len--;
             free(history[history_len]);
+            if (mlmode) linenoiseEditMoveEnd(&l);
             return (int)l.len;
         case CTRL_C:     /* ctrl-c */
             errno = EAGAIN;
@@ -779,8 +780,8 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
         case 8:     /* ctrl-h */
             linenoiseEditBackspace(&l);
             break;
-        case CTRL_D:     /* ctrl-d, remove char at right of cursor, or of the
-                       line is empty, act as end-of-file. */
+        case CTRL_D:     /* ctrl-d, remove char at right of cursor, or if the
+                            line is empty, act as end-of-file. */
             if (l.len > 0) {
                 linenoiseEditDelete(&l);
             } else {
