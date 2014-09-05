@@ -94,12 +94,15 @@
  *
  */
 
+#define _XOPEN_SOURCE 500       /* strdup */
+
 #include <termios.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
+#include <strings.h>
 #include <stdlib.h>
 #include <ctype.h>
 #include <sys/types.h>
@@ -139,25 +142,25 @@ struct linenoiseState {
 };
 
 enum KEY_ACTION{
-	KEY_NULL = 0,	    /* NULL */
-	CTRL_A = 1,         /* Ctrl+a */
-	CTRL_B = 2,         /* Ctrl-b */
-	CTRL_C = 3,         /* Ctrl-c */
-	CTRL_D = 4,         /* Ctrl-d */
-	CTRL_E = 5,         /* Ctrl-e */
-	CTRL_F = 6,         /* Ctrl-f */
-	CTRL_H = 8,         /* Ctrl-h */
-	TAB = 9,            /* Tab */
-	CTRL_K = 11,        /* Ctrl+k */
-	CTRL_L = 12,        /* Ctrl+l */
-	ENTER = 13,         /* Enter */
-	CTRL_N = 14,        /* Ctrl-n */
-	CTRL_P = 16,        /* Ctrl-p */
-	CTRL_T = 20,        /* Ctrl-t */
-	CTRL_U = 21,        /* Ctrl+u */
-	CTRL_W = 23,        /* Ctrl+w */
-	ESC = 27,           /* Escape */
-	BACKSPACE =  127    /* Backspace */
+       KEY_NULL = 0,       /* NULL */
+       CTRL_A = 1,         /* Ctrl+a */
+       CTRL_B = 2,         /* Ctrl-b */
+       CTRL_C = 3,         /* Ctrl-c */
+       CTRL_D = 4,         /* Ctrl-d */
+       CTRL_E = 5,         /* Ctrl-e */
+       CTRL_F = 6,         /* Ctrl-f */
+       CTRL_H = 8,         /* Ctrl-h */
+       TAB = 9,            /* Tab */
+       CTRL_K = 11,        /* Ctrl+k */
+       CTRL_L = 12,        /* Ctrl+l */
+       ENTER = 13,         /* Enter */
+       CTRL_N = 14,        /* Ctrl-n */
+       CTRL_P = 16,        /* Ctrl-p */
+       CTRL_T = 20,        /* Ctrl-t */
+       CTRL_U = 21,        /* Ctrl+u */
+       CTRL_W = 23,        /* Ctrl+w */
+       ESC = 27,           /* Escape */
+       BACKSPACE =  127    /* Backspace */
 };
 
 static void linenoiseAtExit(void);
@@ -265,7 +268,7 @@ static int getCursorPosition(int ifd, int ofd) {
 
     /* Parse it. */
     if (buf[0] != ESC || buf[1] != '[') return -1;
-    if (sscanf(buf+2,"%d;%d",&rows,&cols) != 2) return -1;
+    if (sscanf(buf+2,"%6d;%6d",&rows,&cols) != 2) return -1;
     return cols;
 }
 
@@ -337,7 +340,6 @@ static void freeCompletions(linenoiseCompletions *lc) {
  * structure as described in the structure definition. */
 static int completeLine(struct linenoiseState *ls) {
     linenoiseCompletions lc = { 0, NULL };
-    int nread, nwritten;
     char c = 0;
 
     completionCallback(ls->buf,&lc);
@@ -345,11 +347,13 @@ static int completeLine(struct linenoiseState *ls) {
         linenoiseBeep();
     } else {
         size_t stop = 0, i = 0;
+        int nread, nwritten;
+        struct linenoiseState saved;
 
         while(!stop) {
             /* Show completion or original buffer */
             if (i < lc.len) {
-                struct linenoiseState saved = *ls;
+                saved = *ls;
 
                 ls->len = ls->pos = strlen(lc.cvec[i]);
                 ls->buf = lc.cvec[i];
@@ -514,13 +518,13 @@ static void refreshMultiLine(struct linenoiseState *l) {
 
     /* Now for every row clear it, go up. */
     for (j = 0; j < old_rows-1; j++) {
-        lndebug("clear+up");
+        lndebug("%s", "clear+up");
         snprintf(seq,64,"\x1b[0G\x1b[0K\x1b[1A");
         abAppend(&ab,seq,strlen(seq));
     }
 
     /* Clean the top line. */
-    lndebug("clear");
+    lndebug("%s", "clear");
     snprintf(seq,64,"\x1b[0G\x1b[0K");
     abAppend(&ab,seq,strlen(seq));
 
@@ -534,7 +538,7 @@ static void refreshMultiLine(struct linenoiseState *l) {
         l->pos == l->len &&
         (l->pos+plen) % l->cols == 0)
     {
-        lndebug("<newline>");
+        lndebug("%s", "<newline>");
         abAppend(&ab,"\n",1);
         snprintf(seq,64,"\x1b[0G");
         abAppend(&ab,seq,strlen(seq));
@@ -558,7 +562,7 @@ static void refreshMultiLine(struct linenoiseState *l) {
     snprintf(seq,64,"\x1b[%dG", 1+((plen+(int)l->pos) % (int)l->cols));
     abAppend(&ab,seq,strlen(seq));
 
-    lndebug("\n");
+    lndebug("%s", "\n");
     l->oldpos = l->pos;
 
     if (write(fd,ab.b,ab.len) == -1) {} /* Can't recover from write error. */
@@ -707,7 +711,11 @@ void linenoiseEditDeletePrevWord(struct linenoiseState *l) {
  * when ctrl+d is typed.
  *
  * The function returns the length of the current buffer. */
-static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, const char *prompt)
+static int linenoiseEdit(int stdin_fd,
+                         int stdout_fd,
+                         char *buf,
+                         size_t buflen,
+                         const char *prompt)
 {
     struct linenoiseState l;
 
@@ -944,7 +952,6 @@ static int linenoiseRaw(char *buf, size_t buflen, const char *prompt) {
  * something even in the most desperate of the conditions. */
 char *linenoise(const char *prompt) {
     char buf[LINENOISE_MAX_LINE];
-    int count;
 
     if (isUnsupportedTerm()) {
         size_t len;
@@ -959,6 +966,8 @@ char *linenoise(const char *prompt) {
         }
         return strdup(buf);
     } else {
+        int count;
+
         count = linenoiseRaw(buf,LINENOISE_MAX_LINE,prompt);
         if (count == -1) return NULL;
         return strdup(buf);
