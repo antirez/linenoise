@@ -514,13 +514,13 @@ static void refreshMultiLine(struct linenoiseState *l) {
 
     /* Now for every row clear it, go up. */
     for (j = 0; j < old_rows-1; j++) {
-        lndebug("clear+up");
+        lndebug("clear+up", NULL);
         snprintf(seq,64,"\x1b[0G\x1b[0K\x1b[1A");
         abAppend(&ab,seq,strlen(seq));
     }
 
     /* Clean the top line. */
-    lndebug("clear");
+    lndebug("clear", NULL);
     snprintf(seq,64,"\x1b[0G\x1b[0K");
     abAppend(&ab,seq,strlen(seq));
 
@@ -534,7 +534,7 @@ static void refreshMultiLine(struct linenoiseState *l) {
         l->pos == l->len &&
         (l->pos+plen) % l->cols == 0)
     {
-        lndebug("<newline>");
+        lndebug("<newline>", NULL);
         abAppend(&ab,"\n",1);
         snprintf(seq,64,"\x1b[0G");
         abAppend(&ab,seq,strlen(seq));
@@ -558,7 +558,7 @@ static void refreshMultiLine(struct linenoiseState *l) {
     snprintf(seq,64,"\x1b[%dG", 1+((plen+(int)l->pos) % (int)l->cols));
     abAppend(&ab,seq,strlen(seq));
 
-    lndebug("\n");
+    lndebug("\n", NULL);
     l->oldpos = l->pos;
 
     if (write(fd,ab.b,ab.len) == -1) {} /* Can't recover from write error. */
