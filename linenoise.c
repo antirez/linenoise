@@ -377,11 +377,11 @@ static int completeLine(struct linenoiseState *ls) {
             }
 
             switch(c) {
-                case 9: /* tab */
+                case TAB: /* tab */
                     i = (i+1) % (lc.len+1);
                     if (i == lc.len) linenoiseBeep();
                     break;
-                case 27: /* escape */
+                case ESC: /* escape */
                     /* Re-show original buffer */
                     if (i < lc.len) refreshLine(ls);
                     stop = 1;
@@ -759,12 +759,12 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
         /* Only autocomplete when the callback is set. It returns < 0 when
          * there was an error reading from fd. Otherwise it will return the
          * character that should be handled next. */
-        if (c == 9 && completionCallback != NULL) {
+        if (c == TAB && completionCallback != NULL) {
             c = completeLine(&l);
             /* Return on errors */
             if (c < 0) return l.len;
             /* Read next character when 0 */
-            if (c == 0) continue;
+            if (c == KEY_NULL) continue;
         }
 
         switch(c) {
