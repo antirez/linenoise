@@ -56,7 +56,7 @@ int main(int argc, char **argv) {
             int len = atoi(line+11);
             linenoiseHistorySetMaxLen(len);
         } else if (line[0] == '/') {
-            printf("Unreconized command: %s\n", line);
+            printf("Unrecognized command: %s\n", line);
         }
         free(line);
     }
