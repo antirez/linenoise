@@ -127,6 +127,7 @@ static int mlmode = 0;  /* Multi line mode. Default is single line. */
 static int atexit_registered = 0; /* Register atexit just 1 time. */
 static int history_max_len = LINENOISE_DEFAULT_HISTORY_MAX_LEN;
 static int history_len = 0;
+static int history_count = 0;
 static char **history = NULL;
 
 /* The linenoiseState structure represents the state during line editing.
@@ -770,8 +771,36 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
         switch(c) {
         case ENTER:    /* enter */
             history_len--;
+            history_count--;
             free(history[history_len]);
             if (mlmode) linenoiseEditMoveEnd(&l);
+	    {
+	      char* current = l.buf;
+
+	      while (isspace(*current))
+		current++;
+	      if (*current == '!') {
+		char* endptr;
+		int index = strtol(current + 1, &endptr, 10);
+		char* entry = NULL;
+
+		if (*endptr == '\0') {
+		  if ((index < 0) && (abs(index) <= history_len))
+		    entry = history[history_len + index];
+		  else if ((index > 0) && (index >= (history_count - history_len)) && (index <= history_count))
+		    entry = history[index - history_count + history_len - 1];
+		}
+		if (entry) {
+		  strncpy(l.buf, entry, l.buflen);
+		  l.buf[l.buflen-1] = '\0';
+		  l.len = strlen(l.buf);
+		}
+		else {
+		  l.buf[0] = '\0';
+		  l.len = 0;
+		}
+	      }
+	    }
             return (int)l.len;
         case CTRL_C:     /* ctrl-c */
             errno = EAGAIN;
@@ -786,6 +815,7 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
                 linenoiseEditDelete(&l);
             } else {
                 history_len--;
+                history_count--;
                 free(history[history_len]);
                 return -1;
             }
@@ -1033,6 +1063,7 @@ int linenoiseHistoryAdd(const char *line) {
     }
     history[history_len] = linecopy;
     history_len++;
+    history_count++;
     return 1;
 }
 
