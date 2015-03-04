@@ -718,7 +718,7 @@ void linenoiseEditBackspace(struct linenoiseState *l) {
     }
 }
 
-/* Delete the previosu word, maintaining the cursor at the start of the
+/* Delete the previous word, maintaining the cursor at the start of the
  * current word. */
 void linenoiseEditDeletePrevWord(struct linenoiseState *l) {
     size_t old_pos = l->pos;
@@ -731,6 +731,26 @@ void linenoiseEditDeletePrevWord(struct linenoiseState *l) {
     diff = old_pos - l->pos;
     memmove(l->buf+l->pos,l->buf+old_pos,l->len-old_pos+1);
     l->len -= diff;
+    refreshLine(l);
+}
+
+/* Delete the next word, maintaining the cursor at the start of the
+ * current word. */
+void linenoiseEditDeleteNextWord(struct linenoiseState *l) {
+    size_t old_pos = l->pos;
+    size_t diff;
+
+    while (l->pos != l->len && isWordSep(l->buf[l->pos]))
+        l->pos++;
+
+    while (l->pos != l->len && !isWordSep(l->buf[l->pos]))
+	l->pos++;
+
+    diff = l->pos - old_pos;
+    memmove(l->buf+old_pos,l->buf+l->pos,l->len-l->pos+1);
+    l->len -= diff;
+    l->pos = old_pos;
+
     refreshLine(l);
 }
 
@@ -895,6 +915,14 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
 		case 'f':
 		    linenoiseEditMoveRightWord(&l);
 		    break;
+		case BACKSPACE:
+		case 'h':
+		    linenoiseEditDeletePrevWord(&l);
+		    break;
+		case 'd':
+		    linenoiseEditDeleteNextWord(&l);
+		    break;
+
 		default:
 		    /* not handled */
 		    break;
