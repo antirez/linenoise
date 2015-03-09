@@ -377,11 +377,11 @@ static int completeLine(struct linenoiseState *ls) {
             }
 
             switch(c) {
-                case 9: /* tab */
+                case TAB:
                     i = (i+1) % (lc.len+1);
                     if (i == lc.len) linenoiseBeep();
                     break;
-                case 27: /* escape */
+                case ESC:
                     /* Re-show original buffer */
                     if (i < lc.len) refreshLine(ls);
                     stop = 1;
@@ -633,6 +633,41 @@ void linenoiseEditMoveRight(struct linenoiseState *l) {
     }
 }
 
+
+static int isWordSep(int ch) {
+    return !isalnum(ch);
+}
+
+void linenoiseEditMoveLeftWord(struct linenoiseState *l) {
+    if (l->pos == 0) return;
+
+    l->pos--;
+
+    while (l->pos > 0 && isWordSep(l->buf[l->pos]))
+	l->pos--;
+
+    while (l->pos > 0 && !isWordSep(l->buf[l->pos-1]))
+	l->pos--;
+
+    refreshLine(l);
+}
+
+/* Move word to the right */
+void linenoiseEditMoveRightWord(struct linenoiseState *l) {
+    if (l->pos == l->len) return;
+
+    l->pos++;
+
+    while (l->pos != l->len && isWordSep(l->buf[l->pos]))
+	l->pos++;
+
+    while (l->pos != l->len && !isWordSep(l->buf[l->pos]))
+	l->pos++;
+
+    refreshLine(l);
+}
+
+
 /* Move cursor to the start of the line. */
 void linenoiseEditMoveHome(struct linenoiseState *l) {
     if (l->pos != 0) {
@@ -697,7 +732,7 @@ void linenoiseEditBackspace(struct linenoiseState *l) {
     }
 }
 
-/* Delete the previosu word, maintaining the cursor at the start of the
+/* Delete the previous word, maintaining the cursor at the start of the
  * current word. */
 void linenoiseEditDeletePrevWord(struct linenoiseState *l) {
     size_t old_pos = l->pos;
@@ -710,6 +745,26 @@ void linenoiseEditDeletePrevWord(struct linenoiseState *l) {
     diff = old_pos - l->pos;
     memmove(l->buf+l->pos,l->buf+old_pos,l->len-old_pos+1);
     l->len -= diff;
+    refreshLine(l);
+}
+
+/* Delete the next word, maintaining the cursor at the start of the
+ * current word. */
+void linenoiseEditDeleteNextWord(struct linenoiseState *l) {
+    size_t old_pos = l->pos;
+    size_t diff;
+
+    while (l->pos != l->len && isWordSep(l->buf[l->pos]))
+        l->pos++;
+
+    while (l->pos != l->len && !isWordSep(l->buf[l->pos]))
+	l->pos++;
+
+    diff = l->pos - old_pos;
+    memmove(l->buf+old_pos,l->buf+l->pos,l->len-l->pos+1);
+    l->len -= diff;
+    l->pos = old_pos;
+
     refreshLine(l);
 }
 
@@ -768,16 +823,16 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
         }
 
         switch(c) {
-        case ENTER:    /* enter */
+        case ENTER:
             history_len--;
             free(history[history_len]);
             if (mlmode) linenoiseEditMoveEnd(&l);
             return (int)l.len;
-        case CTRL_C:     /* ctrl-c */
+        case CTRL_C:
             errno = EAGAIN;
             return -1;
-        case BACKSPACE:   /* backspace */
-        case 8:     /* ctrl-h */
+        case BACKSPACE:
+        case CTRL_H:
             linenoiseEditBackspace(&l);
             break;
         case CTRL_D:     /* ctrl-d, remove char at right of cursor, or if the
@@ -812,14 +867,13 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
             linenoiseEditHistoryNext(&l, LINENOISE_HISTORY_NEXT);
             break;
         case ESC:    /* escape sequence */
-            /* Read the next two bytes representing the escape sequence.
-             * Use two calls to handle slow terminals returning the two
-             * chars at different times. */
+	    /* Use first byte following ESC to determine if additional
+	     * reads are necessary */
             if (read(l.ifd,seq,1) == -1) break;
-            if (read(l.ifd,seq+1,1) == -1) break;
 
-            /* ESC [ sequences. */
+            /* ESC [ sequences. Additional 2 or 3 bytes */
             if (seq[0] == '[') {
+		if (read(l.ifd,seq+1,1) == -1) break;
                 if (seq[1] >= '0' && seq[1] <= '9') {
                     /* Extended escape, read additional byte. */
                     if (read(l.ifd,seq+2,1) == -1) break;
@@ -854,8 +908,9 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
                 }
             }
 
-            /* ESC O sequences. */
+            /* ESC O sequences. 2 bytes */
             else if (seq[0] == 'O') {
+		if (read(l.ifd,seq+1,1) == -1) break;
                 switch(seq[1]) {
                 case 'H': /* Home */
                     linenoiseEditMoveHome(&l);
@@ -865,6 +920,30 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
                     break;
                 }
             }
+
+	    /* ESC single byte */
+	    else {
+		switch(seq[0]) {
+		case 'b':
+		    linenoiseEditMoveLeftWord(&l);
+		    break;
+		case 'f':
+		    linenoiseEditMoveRightWord(&l);
+		    break;
+		case BACKSPACE:
+		case 'h':
+		    linenoiseEditDeletePrevWord(&l);
+		    break;
+		case 'd':
+		    linenoiseEditDeleteNextWord(&l);
+		    break;
+
+		default:
+		    /* not handled */
+		    break;
+		}
+	    }
+
             break;
         default:
             if (linenoiseEditInsert(&l,c)) return -1;
