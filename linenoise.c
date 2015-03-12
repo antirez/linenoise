@@ -152,7 +152,6 @@ enum KEY_ACTION{
 	KEY_NULL = 0,	    /* NULL */
 	CTRL_A = 1,         /* Ctrl+a */
 	CTRL_B = 2,         /* Ctrl-b */
-	CTRL_C = 3,         /* Ctrl-c */
 	CTRL_D = 4,         /* Ctrl-d */
 	CTRL_E = 5,         /* Ctrl-e */
 	CTRL_F = 6,         /* Ctrl-f */
@@ -166,7 +165,6 @@ enum KEY_ACTION{
 	CTRL_T = 20,        /* Ctrl-t */
 	CTRL_U = 21,        /* Ctrl+u */
 	CTRL_W = 23,        /* Ctrl+w */
-	CTRL_Z = 26,        /* Ctrl-z */
 	ESC = 27,           /* Escape */
 	BACKSPACE =  127    /* Backspace */
 };
@@ -234,7 +232,7 @@ static int enableRawMode(int fd) {
     raw.c_cflag |= (CS8);
     /* local modes - choing off, canonical off, no extended functions,
      * no signal chars (^Z,^C) */
-    raw.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
+    raw.c_lflag &= ~(ECHO | ICANON | IEXTEN);
     /* control chars - set return condition: min number of bytes and timer.
      * We want read to return every single byte, without timeout. */
     raw.c_cc[VMIN] = 1; raw.c_cc[VTIME] = 0; /* 1 byte, no timer */
@@ -723,6 +721,9 @@ void linenoiseEditDeletePrevWord(struct linenoiseState *l) {
  * when ctrl+d is typed.
  *
  * The function returns the length of the current buffer. */
+
+static struct linenoiseState *linenoiseStatePointer = NULL;
+
 static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, const char *prompt)
 {
     struct linenoiseState l;
@@ -744,6 +745,8 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
     /* Buffer starts empty. */
     l.buf[0] = '\0';
     l.buflen--; /* Make sure there is always space for the nulterm */
+
+    linenoiseStatePointer = &l;
 
     /* The latest history entry is always our current buffer, that
      * initially is just an empty string. */
@@ -775,9 +778,6 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
             free(history[history_len]);
             if (mlmode) linenoiseEditMoveEnd(&l);
             return (int)l.len;
-        case CTRL_C:     /* ctrl-c */
-            kill(getpid(), SIGINT);
-            break;
         case BACKSPACE:   /* backspace */
         case 8:     /* ctrl-h */
             linenoiseEditBackspace(&l);
@@ -894,13 +894,6 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
         case CTRL_W: /* ctrl+w, delete previous word */
             linenoiseEditDeletePrevWord(&l);
             break;
-        case CTRL_Z: /* ctrl+z */
-            kill(getpid(), SIGTSTP);
-            refreshLine(&l);
-            if (isatty(STDIN_FILENO)) {
-            	if (enableRawMode(STDIN_FILENO) == -1) return -1;
-            }
-            break;
         }
     }
     return l.len;
@@ -934,6 +927,17 @@ void linenoisePrintKeyCodes(void) {
     disableRawMode(STDIN_FILENO);
 }
 
+static void
+SigContinueHandler( int Signal )
+{
+  if ( Signal == SIGCONT )
+    {
+      enableRawMode(STDIN_FILENO);
+      if ( linenoiseStatePointer )
+	refreshLine(linenoiseStatePointer);
+    }
+}
+
 /* This function calls the line editing function linenoiseEdit() using
  * the STDIN file descriptor set in raw mode. */
 static int linenoiseRaw(char *buf, size_t buflen, const char *prompt) {
@@ -953,8 +957,13 @@ static int linenoiseRaw(char *buf, size_t buflen, const char *prompt) {
         }
     } else {
         /* Interactive editing. */
+      void ( *DefaultSigContinueHandler ) ( int Signal );
+
         if (enableRawMode(STDIN_FILENO) == -1) return -1;
+	DefaultSigContinueHandler = signal( SIGCONT, SigContinueHandler );
         count = linenoiseEdit(STDIN_FILENO, STDOUT_FILENO, buf, buflen, prompt);
+	signal( SIGCONT, DefaultSigContinueHandler );
+	linenoiseStatePointer = NULL;
         disableRawMode(STDIN_FILENO);
         printf("\n");
     }
