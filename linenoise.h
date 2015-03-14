@@ -44,11 +44,12 @@ extern "C" {
 typedef struct linenoiseCompletions {
   size_t len;
   char **cvec;
+  char **hvec;
 } linenoiseCompletions;
 
 typedef void(linenoiseCompletionCallback)(const char *, linenoiseCompletions *);
 void linenoiseSetCompletionCallback(linenoiseCompletionCallback *);
-void linenoiseAddCompletion(linenoiseCompletions *, const char *);
+void linenoiseAddCompletion(linenoiseCompletions *, const char *, const char *);
 
 char *linenoise(const char *prompt);
 int linenoiseHistoryAdd(const char *line);
