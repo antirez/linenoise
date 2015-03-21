@@ -1,5 +1,5 @@
 
-CXX_FLAGS = -std=c++11 -Wall -W -g
+CXX_FLAGS = -std=c++0x -Wall -W -g
 
 linenoise_example: lib example.cpp
 	$(CXX) $(CXX_FLAGS)  -o example.o -c example.cpp
