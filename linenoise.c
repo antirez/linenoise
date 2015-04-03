@@ -444,11 +444,11 @@ static void abInit(struct abuf *ab) {
 }
 
 static void abAppend(struct abuf *ab, const char *s, int len) {
-    char *new = realloc(ab->b,ab->len+len);
+    char *new_buffer = (char*)realloc(ab->b,ab->len+len);
 
-    if (new == NULL) return;
-    memcpy(new+ab->len,s,len);
-    ab->b = new;
+    if (new_buffer == NULL) return;
+    memcpy(new_buffer+ab->len,s,len);
+    ab->b = new_buffer;
     ab->len += len;
 }
 
