@@ -1041,14 +1041,14 @@ int linenoiseHistoryAdd(const char *line) {
  * just the latest 'len' elements if the new history length value is smaller
  * than the amount of items already inside the history. */
 int linenoiseHistorySetMaxLen(int len) {
-    char **new;
+    char **new_history;
 
     if (len < 1) return 0;
     if (history) {
         int tocopy = history_len;
 
-        new = malloc(sizeof(char*)*len);
-        if (new == NULL) return 0;
+        new_history = (char**)malloc(sizeof(char*)*len);
+        if (new_history == NULL) return 0;
 
         /* If we can't copy everything, free the elements we'll not use. */
         if (len < tocopy) {
@@ -1057,10 +1057,10 @@ int linenoiseHistorySetMaxLen(int len) {
             for (j = 0; j < tocopy-len; j++) free(history[j]);
             tocopy = len;
         }
-        memset(new,0,sizeof(char*)*len);
-        memcpy(new,history+(history_len-tocopy), sizeof(char*)*tocopy);
+        memset(new_history,0,sizeof(char*)*len);
+        memcpy(new_history,history+(history_len-tocopy), sizeof(char*)*tocopy);
         free(history);
-        history = new;
+        history = new_history;
     }
     history_max_len = len;
     if (history_len > history_max_len)
