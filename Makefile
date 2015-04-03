@@ -1,4 +1,6 @@
-linenoise_example: linenoise.h linenoise.c
+.PHONY: all
+
+all: linenoise_example
 
 linenoise_example: linenoise.c example.c
 	$(CC) -Wall -W -Os -g -o linenoise_example linenoise.c example.c
