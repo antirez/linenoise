@@ -1,10 +1,11 @@
 CXX=g++
 CXXFLAGS=-Wall -W -Os -g
+CCFLAGS=-Wall -W -Os -g
 
 all: linenoise_example linenoise_example++11 linenoise_example++98
 
 linenoise_example: linenoise.c example.c
-	$(CC) -Wall -W -Os -g -o linenoise_example linenoise.c example.c
+	$(CC) $(CCFLAGS) -o linenoise_example linenoise.c example.c
 
 linenoise_example++11: linenoise.h linenoise.c example.c
 	$(CXX) $(CXXFLAGS) -std=c++11 -o linenoise_example++11 linenoise.c example.c
