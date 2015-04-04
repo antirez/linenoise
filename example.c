@@ -55,6 +55,7 @@ int main(int argc, char **argv) {
             linenoiseHistoryAdd(line); /* Add to the history. */
             linenoiseHistorySave("history.txt"); /* Save the history on disk. */
             if (strcmp(line, "quit") == 0) {
+                free(line);
                 break;
             }
             printf("echo: '%s'\n", line);
