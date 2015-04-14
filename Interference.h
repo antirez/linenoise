@@ -1,10 +1,6 @@
 
 #import <Foundation/Foundation.h>
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
 @interface Interference : NSObject
 
 /*! @note To load history, just set the @c historyLoadPath;
@@ -21,7 +17,7 @@
 - (void) printKeyCodes;
 
 /*! Sets prompt's string, and passes each user-entered line to block.
-    @note Return YES from block to save to history.
+    @note Return YES from block to save the line to history.
  */
 - (void) prompt:(NSString*)promt withBlock:(BOOL(^)(NSString*))cmd;   /// AKA RUN!
 

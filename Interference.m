@@ -13,6 +13,27 @@ void compHandler(const char *buf, linenoiseCompletions *lc) {
 
 @implementation Interference
 
+- init { if (!(self = super.init)) return nil;
+
+  NSArray *args = NSProcessInfo.processInfo.arguments;
+  if (args.count <= 1) return self;
+
+  if ([args containsObject:@"--multiline"]) { ///  enable multi line editing.
+
+    NSUInteger lines = [args[[args indexOfObject:@"--multiline"] + 1] integerValue];
+    [self setMultiLine:lines];
+    printf("Multi-line mode enabled (%lu).\n", lines);
+
+  } else if ([args containsObject:@"--keycodes"]) {
+
+      [self printKeyCodes];  return nil;
+
+  } else { fprintf(stderr, "Usage: %s [--multiline] [--keycodes]\n", [args[0] UTF8String]); return nil; }
+
+  return self;
+
+}
+
 - (void) setCompletions:(NSArray*(^)(NSString*))comps { completions = [comps copy];
 
   linenoiseSetCompletionCallback(compHandler);
@@ -43,8 +64,7 @@ void compHandler(const char *buf, linenoiseCompletions *lc) {
       The call to linenoise() will block as long as the user types something and presses enter.
       The typed string is returned as a malloc() allocated string by linenoise, so the user needs to free() it. */
 
-  char * line;
-
+  char  * line;
   while ((line = linenoise(prompt.UTF8String))) {
 
     if (cmd && cmd([NSString stringWithUTF8String:line])) {
@@ -57,12 +77,3 @@ void compHandler(const char *buf, linenoiseCompletions *lc) {
 }
 
 @end
-
-//- (NSUInteger) countOfHistory { return self.history.count; }
-//- (void) insertObject:(NSString*)o inHistoryAtIndex:(NSUInteger)index {
-//  [actualHistory insertObject:o atIndex:index];
-//}
-//- objectInHistoryAtIndex:(NSUInteger)index {return self.history[index]; }
-//
-//- (void)removeObjectFromHistoryAtIndex:(NSUInteger)index { [actualHistory removeObjectAtIndex:index]; }
-
