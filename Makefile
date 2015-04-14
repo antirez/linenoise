@@ -1,14 +1,15 @@
+CFLAGS := -Wall 
+TARGET  = linenoise_example
+  
+all: *.c *.h $(TARGET)
+  
+$(TARGET): *.c
+	$(CC) $(CFLAGS) -o $(TARGET) $^
 
-OBJC_FLAGS = -fobjc-arc -framework Foundation
-OBJC_FILES = Interference.m example.m
-
-linenoise_example: linenoise.h linenoise.c
-
-linenoise_example: linenoise.c example.c
-	$(CC) -Wall -W -Os -g -o linenoise_example linenoise.c example.c
-
-objc: linenoise.c Interference.h $(OBJC_FILES)
-	$(CC) -w -g -o linenoise_objc_example linenoise.c $(OBJC_FILES) $(OBJC_FLAGS)
-
+$(TARGET)_objc: objc/*.m linenoise.c
+	$(CC) $(CFLAGS) $^ -fobjc-arc -I$(CURDIR) -o $@
+	
+objc: $(TARGET)_objc *.h objc/*.h
+	
 clean:
-	rm -f linenoise_example linenoise_objc_example
+	rm -rvf $(TARGET)* **.dSYM **.a **.out **.gch

@@ -1,39 +1,46 @@
 
 #import "Interference.h"
 
-int main(int argc, char **argv) {
+#define ALT_HISTORY [[[NSString stringWithContentsOfFile:@"/usr/share/dict/words" \
+  encoding:NSUTF8StringEncoding error:nil] substringToIndex:3000] componentsSeparatedByString:@"\n"]
 
-  Interference * lineNoise = Interference.new;
+int main(int argc, char **argv) { @autoreleasepool {
 
-  /// Set the completion callback. This will be called every time the user uses the <tab> key.
+    Interference * lineNoise = Interference.new;
 
-  [lineNoise setCompletions:^NSArray*(NSString*c){
+    lineNoise.completionHandler = ^NSArray*(NSString*line){
 
-    return [c isEqualToString:@"h"] ? @[@"hello", @"hello there"] : nil;
-  }];
+      return [line isEqualToString:@"h"] ? @[@"hello", @"hello there"] :
+             [line isEqualToString:@"/"] ? @[@"/althistory", @"/historylen"] : nil;
 
-  /// The history file is just a plain text file where entries are separated by newlines.
+    };
 
-  [lineNoise setHistoryLoadPath:@"/usr/share/dict/propernames"]; /// Loads a history file
+    lineNoise.historyLoadPath = @"/usr/share/dict/propernames"; /// Loads a history file
 
-  [lineNoise setHistorySavePath:@"history.txt "]; /// Optionally, set an alt. path to save history.
+    lineNoise.historySavePath = @"history.txt"; /// Optionally, set an alt. path to save history.
 
-  [lineNoise prompt:@"linenoise > " withBlock:^BOOL(NSString *l) { /// deal with stdin, return YES to save line to history
+    [lineNoise prompt:@"linenoise > " withBlock:^BOOL(NSString *l) { /// returning YES saves the line to history
 
-    if (!l.length) return NO; unichar l0 = [l characterAtIndex:0];
+      unichar l0 = [l characterAtIndex:0];
 
-    if (l0 != '\0' && l0 != '/') { /// Do something with the string.
+      if ([l isEqualToString:@"?"]) printf("%s\n", lineNoise.history.description.UTF8String);
 
-      printf("echo: '%s'\n", l.UTF8String); return YES; // default, catchall "echo"
+      else if (l0 != '\0' && l0 != '/') { /// Do something with the string.
 
-    } else if ([l hasPrefix:@"/historylen"])  /// The "/historylen" command will change the history len.
+        printf("echo: '%s'\n", l.UTF8String); return YES; // default, catchall "echo"
 
-       [lineNoise setHistoryLength:[[l substringFromIndex:11] integerValue]];
+      } else if ([l hasPrefix:@"/historylen"])  /// The "/historylen" command will change the history len.
 
-    else if (l0 == '/') printf("Unreconized command: %s\n", l.UTF8String);
+        lineNoise.historyLength = [[l substringFromIndex:11] integerValue];
 
-    return NO;
-  }];
+      else if ([l hasPrefix:@"/althistory"]) // for this example, reset the history to some new array.
 
-  return EXIT_SUCCESS;
+        lineNoise.history = ALT_HISTORY;
+
+      else if (l0 == '/') printf("Unreconized command: %s\n", l.UTF8String);
+
+      return NO;
+    }];
+
+  } return EXIT_SUCCESS;
 }
