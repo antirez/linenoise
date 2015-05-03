@@ -14,6 +14,8 @@ void completion(const char *buf, linenoiseCompletions *lc) {
 int main(int argc, char **argv) {
     char *line;
     char *prgname = argv[0];
+    char *(*run)(const char *);
+    int vimode = 0;
 
     /* Parse options, with --multiline we enable multi line editing. */
     while(argc > 1) {
@@ -25,6 +27,8 @@ int main(int argc, char **argv) {
         } else if (!strcmp(*argv,"--keycodes")) {
             linenoisePrintKeyCodes();
             exit(0);
+	} else if (!strcmp(*argv, "-v")) {
+            vimode = 1;
         } else {
             fprintf(stderr, "Usage: %s [--multiline] [--keycodes]\n", prgname);
             exit(1);
@@ -45,7 +49,14 @@ int main(int argc, char **argv) {
      *
      * The typed string is returned as a malloc() allocated string by
      * linenoise, so the user needs to free() it. */
-    while((line = linenoise("hello> ")) != NULL) {
+
+    if (vimode == 1) {
+        run = &linenoisevi;
+    } else {
+        run = &linenoise;
+    }
+
+    while((line = run("hello> ")) != NULL) {
         /* Do something with the string. */
         if (line[0] != '\0' && line[0] != '/') {
             printf("echo: '%s'\n", line);
