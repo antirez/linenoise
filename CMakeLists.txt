@@ -49,6 +49,6 @@ target_link_libraries(example linenoise)
 # Install
 #
 install(TARGETS linenoise DESTINATION lib)
-install(TARGETS linenoise.h DESTINATION include)
+install(FILES linenoise.h DESTINATION include)
 install(TARGETS example DESTINATION bin)
 
