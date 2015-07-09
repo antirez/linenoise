@@ -11,9 +11,9 @@ void completion(const char *buf, linenoiseCompletions *lc) {
     }
 }
 
-int main(int argc, char **argv) {
+int main(int argc, const char **argv) {
     char *line;
-    char *prgname = argv[0];
+    const char *prgname = argv[0];
 
     /* Parse options, with --multiline we enable multi line editing. */
     while(argc > 1) {
