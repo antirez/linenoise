@@ -43,23 +43,30 @@
 extern "C" {
 #endif
 
-typedef struct linenoiseCompletions {
-  size_t len;
-  char **cvec;
-} linenoiseCompletions;
+void linenoiseAddCompletion(const char *);
 
-typedef void(linenoiseCompletionCallback)(const char *, linenoiseCompletions *);
-void linenoiseSetCompletionCallback(linenoiseCompletionCallback *);
-void linenoiseAddCompletion(linenoiseCompletions *, const char *);
+/* @brief Free the added completions
+ *
+ */
+void linenoiseFreeCompletions();
 
 char *linenoise(const char *prompt);
+
+/* @brief Add a line to the history list
+ *
+ * @param[in] line The line to add to the history
+ *
+ * @return
+ */
 int linenoiseHistoryAdd(const char *line);
 int linenoiseHistorySetMaxLen(int len);
 int linenoiseHistorySave(const char *filename);
 int linenoiseHistoryLoad(const char *filename);
+
 void linenoiseClearScreen(void);
 void linenoiseSetMultiLine(int ml);
 void linenoisePrintKeyCodes(void);
+void linenoiseAtExit(void);
 
 #ifdef __cplusplus
 }
