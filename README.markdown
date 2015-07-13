@@ -41,6 +41,7 @@ The library is currently about 1100 lines of code. In order to use it in your pr
  * IBM AIX 6.1
  * FreeBSD xterm ($TERM = xterm)
  * ANSI.SYS
+ * Emacs comint mode ($TERM = dumb)
 
 Please test it everywhere you can and report back!
 
