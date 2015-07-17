@@ -715,6 +715,97 @@ void linenoiseEditDeletePrevWord(struct linenoiseState *l) {
     refreshLine(l);
 }
 
+#ifndef LINENOISE_INTERRUPTIBLE
+#define linenoiseRead(l, buf, count) read((*(l)).ifd, buf, count)
+#define linenoiseLock() do {} while (0)
+#define linenoiseUnlock() do {} while (0)
+#else
+#include <pthread.h>
+#include <poll.h>
+
+static pthread_mutex_t linenoise_lock = PTHREAD_MUTEX_INITIALIZER;
+static int linenoise_active = 0;
+static int linenoise_repaint = 0;
+static int linenoise_pipefds[2] = { -1, -1 };
+
+/* allow linenoise to be interruptible */
+void linenoiseInit(void) {
+    if (pipe(linenoise_pipefds) < 0) ;
+}
+
+/* Call before writing to stdout when linenoise may be active in
+ * another thread.  This will suspend linenoise activity and 
+ * clear the text entry line.  linenoiseResume() must be called
+ * after your io is complete so that linenoise may continue.  */
+void linenoisePause(void) {
+    pthread_mutex_lock(&linenoise_lock);
+    if (linenoise_active) {
+        if (write(1, "\x1b[0G\x1b[0K", 8) < 0) ;
+        disableRawMode(STDIN_FILENO);
+    }
+}
+
+/* Call when io is done after you've called linenoisePause()
+ * to suspend linenoise processing during your io. */
+void linenoiseResume(void) {
+    if (linenoise_active) {
+        char x = 0;
+        linenoise_repaint = 1;
+        enableRawMode(STDIN_FILENO);
+        if (write(linenoise_pipefds[1], &x, 1) < 0) ;
+    }
+    pthread_mutex_unlock(&linenoise_lock);
+}
+
+void linenoiseLock(void) {
+    pthread_mutex_lock(&linenoise_lock);
+    linenoise_active = 1;
+}
+
+void linenoiseUnlock(void) {
+    linenoise_active = 0;
+    pthread_mutex_unlock(&linenoise_lock);
+}
+
+ssize_t linenoiseRead(struct linenoiseState *l, void *ptr, int len) {
+    struct pollfd fds[2];
+    int nfds, r;
+
+    for(;;) {
+        fds[0].fd = l->ifd;
+        fds[0].events = POLLIN;
+        fds[0].revents = 0;
+        if (linenoise_pipefds[0] < 0) {
+            nfds = 1;
+            fds[1].fd = linenoise_pipefds[0];
+            fds[1].events = POLLIN;
+        } else {
+            nfds = 2;
+        }
+        fds[1].revents = 0;
+
+        /* wait for input or refresh request */
+        pthread_mutex_unlock(&linenoise_lock);
+        r = poll(fds, nfds, -1);
+        pthread_mutex_lock(&linenoise_lock);
+
+        if (linenoise_repaint) {
+            linenoise_repaint = 0;
+            refreshLine(l);
+        }
+        if (r < 0) return -1;
+        if (fds[1].revents & POLLIN) {
+            char x;
+            if (read(linenoise_pipefds[0], &x, 1) < 0) ;
+            continue;
+        }
+        if (fds[0].revents & POLLIN) {
+            return read(l->ifd, ptr, len);
+        }
+    }
+}
+#endif
+
 /* This function is the core of the line editing capability of linenoise.
  * It expects 'fd' to be already in "raw mode" so that every key pressed
  * will be returned ASAP to read().
@@ -755,7 +846,7 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
         int nread;
         char seq[3];
 
-        nread = read(l.ifd,&c,1);
+        nread = linenoiseRead(&l,&c,1);
         if (nread <= 0) return l.len;
 
         /* Only autocomplete when the callback is set. It returns < 0 when
@@ -946,10 +1037,15 @@ static int linenoiseRaw(char *buf, size_t buflen, const char *prompt) {
         }
     } else {
         /* Interactive editing. */
-        if (enableRawMode(STDIN_FILENO) == -1) return -1;
+        linenoiseLock();
+        if (enableRawMode(STDIN_FILENO) == -1) {
+            linenoiseUnlock();
+            return -1;
+        }
         count = linenoiseEdit(STDIN_FILENO, STDOUT_FILENO, buf, buflen, prompt);
         disableRawMode(STDIN_FILENO);
         printf("\n");
+        linenoiseUnlock();
     }
     return count;
 }
