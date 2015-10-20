@@ -1070,6 +1070,14 @@ int linenoiseHistorySetMaxLen(int len) {
     return 1;
 }
 
+/* Fetch a line of the history by (zero-based) index.  If the requested
+ * line does not exist, NULL is returned.  The return value is a heap-allocated
+ * copy of the line, and the caller is responsible for de-allocating it. */
+char * linenoiseHistoryLine(const int index) {
+    if (index < 0 || index >= history_len) return NULL;
+    return strdup(history[index]);
+}
+
 /* Save the history in the specified file. On success 0 is returned
  * otherwise -1 is returned. */
 int linenoiseHistorySave(const char *filename) {
