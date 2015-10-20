@@ -1,3 +1,16 @@
+# Linenoise Fork
+
+**This is a fork of Official linenoise that addresses some of the outstanding pull requests there.**  I only adopted a few of the pull requests.
+
+Specifics?
+  * [#70](https://github.com/antirez/linenoise/pull/70) make linenoiseEdit read resilient to signal
+  * [#76](https://github.com/antirez/linenoise/pull/76) Added escape sequence for Home ([1~) and End ([4~) keys for xterm
+  * [#100](https://github.com/antirez/linenoise/pull/100) Fixed **two** of the issues identified, but left variable declarations where they were (least disruption).
+  * [#104](https://github.com/antirez/linenoise/pull/104) Added runtime history access.
+
+I picked these because they were simple and did not disrupt the original "spirit" of the codebase and seemed pretty universally needed.  Plus I'm lazy!  If you want to add something, submit a pull request here. 
+  
+
 # Linenoise
 
 A minimal, zero-config, BSD licensed, readline replacement used in Redis,
