@@ -3,11 +3,22 @@
 #include <string.h>
 #include "linenoise.h"
 
+#define UTF8
+
+#ifdef UTF8
+#include "encodings/utf8.h"
+#endif
 
 void completion(const char *buf, linenoiseCompletions *lc) {
     if (buf[0] == 'h') {
+#ifdef UTF8
+        linenoiseAddCompletion(lc,"hello こんにちは");
+        linenoiseAddCompletion(lc,"hello こんにちは there");
+        linenoiseAddCompletion(lc,"hello こんにちは 👨‍💻");
+#else
         linenoiseAddCompletion(lc,"hello");
         linenoiseAddCompletion(lc,"hello there");
+#endif
     }
 }
 
@@ -16,6 +27,11 @@ char *hints(const char *buf, int *color, int *bold) {
         *color = 35;
         *bold = 0;
         return " World";
+    }
+    if (!strcasecmp(buf,"こんにちは")) {
+        *color = 35;
+        *bold = 0;
+        return " 世界";
     }
     return NULL;
 }
@@ -40,6 +56,13 @@ int main(int argc, char **argv) {
         }
     }
 
+#ifdef UTF8
+    linenoiseSetEncodingFunctions(
+        linenoiseUtf8PrevCharLen,
+        linenoiseUtf8NextCharLen,
+        linenoiseUtf8ReadCode);
+#endif
+
     /* Set the completion callback. This will be called every time the
      * user uses the <tab> key. */
     linenoiseSetCompletionCallback(completion);
@@ -55,8 +78,11 @@ int main(int argc, char **argv) {
      *
      * The typed string is returned as a malloc() allocated string by
      * linenoise, so the user needs to free() it. */
-    
-    while((line = linenoise("hello> ")) != NULL) {
+#ifdef UTF8
+    while((line = linenoise("\033[32mこんにちは\x1b[0m> ")) != NULL) {
+#else
+    while((line = linenoise("\033[32mhello\x1b[0m> ")) != NULL) {
+#endif
         /* Do something with the string. */
         if (line[0] != '\0' && line[0] != '/') {
             printf("echo: '%s'\n", line);
