@@ -1,4 +1,4 @@
-# Linenoise
+# Linenoise UTF-8
 
 A minimal, zero-config, BSD licensed, readline replacement used in Redis,
 MongoDB, Android and many other projects.
