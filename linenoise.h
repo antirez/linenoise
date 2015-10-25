@@ -61,7 +61,7 @@ struct linenoiseState {
     const char *prompt; /* Prompt to display. */
     size_t plen;        /* Prompt length. */
     size_t pos;         /* Current cursor position. */
-    size_t oldpos;      /* Previous refresh cursor position. */
+    size_t oldcolpos;   /* Previous refresh cursor column position. */
     size_t len;         /* Current edited line length. */
     size_t cols;        /* Number of columns in terminal. */
     size_t oldrows;     /* Rows used by last refrehsed line (multiline mode) */
@@ -105,6 +105,15 @@ void linenoiseSetMultiLine(int ml);
 void linenoisePrintKeyCodes(void);
 void linenoiseMaskModeEnable(void);
 void linenoiseMaskModeDisable(void);
+
+typedef size_t (linenoisePrevCharLen)(const char *buf, size_t buf_len, size_t pos, size_t *col_len);
+typedef size_t (linenoiseNextCharLen)(const char *buf, size_t buf_len, size_t pos, size_t *col_len);
+typedef size_t (linenoiseReadCode)(int fd, char *buf, size_t buf_len, int* c);
+
+void linenoiseSetEncodingFunctions(
+    linenoisePrevCharLen *prevCharLenFunc,
+    linenoiseNextCharLen *nextCharLenFunc,
+    linenoiseReadCode *readCodeFunc);
 
 #ifdef __cplusplus
 }
