@@ -111,6 +111,7 @@
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
+#include <strings.h>
 #include <stdlib.h>
 #include <ctype.h>
 #include <sys/types.h>
@@ -126,6 +127,8 @@ static linenoiseCompletionCallback *completionCallback = NULL;
 static struct termios orig_termios; /* In order to restore at exit.*/
 static int rawmode = 0; /* For atexit() function to check if restore is needed*/
 static int mlmode = 0;  /* Multi line mode. Default is single line. */
+static int list_all_completions = 0;  /* TAB lists all completions once instead of */
+                                      /* rotating them on the same line */
 static int atexit_registered = 0; /* Register atexit just 1 time. */
 static int history_max_len = LINENOISE_DEFAULT_HISTORY_MAX_LEN;
 static int history_len = 0;
@@ -199,6 +202,9 @@ FILE *lndebug_fp = NULL;
 /* Set if to use or not the multi line mode. */
 void linenoiseSetMultiLine(int ml) {
     mlmode = ml;
+}
+void linenoiseSetListAll(int listAll){
+    list_all_completions = listAll;
 }
 
 /* Return true if the terminal name is in the list of terminals we know are
@@ -340,6 +346,17 @@ static void freeCompletions(linenoiseCompletions *lc) {
         free(lc->cvec);
 }
 
+/* List all completion alternatives. One item per line.*/
+static void listAllCompletions(linenoiseCompletions *lc) {
+    size_t i = 0;
+
+    printf("\r\n");
+    while(i < lc->len) {
+        printf("%s\r\n", lc->cvec[i]);
+        ++i;
+    }
+}
+
 /* This is an helper function for linenoiseEdit() and is called when the
  * user types the <tab> key in order to complete the string currently in the
  * input.
@@ -356,6 +373,12 @@ static int completeLine(struct linenoiseState *ls) {
         linenoiseBeep();
     } else {
         size_t stop = 0, i = 0;
+
+        if(list_all_completions && lc.len>1) {
+            listAllCompletions(&lc);
+            refreshLine(ls);
+            stop=1;
+        }
 
         while(!stop) {
             /* Show completion or original buffer */
@@ -380,6 +403,11 @@ static int completeLine(struct linenoiseState *ls) {
 
             switch(c) {
                 case 9: /* tab */
+                    if(list_all_completions){   /* There is only one completion result. Accept it and continue */
+                        nwritten = snprintf(ls->buf,ls->buflen,"%s",lc.cvec[i]);
+                        ls->len = ls->pos = nwritten;
+                        return 0;
+                    }
                     i = (i+1) % (lc.len+1);
                     if (i == lc.len) linenoiseBeep();
                     break;

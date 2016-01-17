@@ -9,6 +9,14 @@ void completion(const char *buf, linenoiseCompletions *lc) {
         linenoiseAddCompletion(lc,"hello");
         linenoiseAddCompletion(lc,"hello there");
     }
+    if (buf[0] == 'e') {
+        linenoiseAddCompletion(lc,"example here");
+        linenoiseAddCompletion(lc,"example there");
+        linenoiseAddCompletion(lc,"example everywhere");
+    }
+    if (buf[0] == 'c') {
+        linenoiseAddCompletion(lc,"cello");
+    }
 }
 
 int main(int argc, char **argv) {
@@ -25,6 +33,8 @@ int main(int argc, char **argv) {
         } else if (!strcmp(*argv,"--keycodes")) {
             linenoisePrintKeyCodes();
             exit(0);
+        } else if (!strcmp(*argv,"--list-all")) {
+            linenoiseSetListAll(1);
         } else {
             fprintf(stderr, "Usage: %s [--multiline] [--keycodes]\n", prgname);
             exit(1);
