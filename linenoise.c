@@ -380,6 +380,13 @@ static int completeLine(struct linenoiseState *ls) {
 
             switch(c) {
                 case 9: /* tab */
+		   if (lc.len == 1) {
+			   set_current(current,lc.cvec[0]);
+			   c = 0;
+			   stop = 1;
+			   break;
+		    }
+
                     i = (i+1) % (lc.len+1);
                     if (i == lc.len) linenoiseBeep();
                     break;
