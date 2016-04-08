@@ -78,14 +78,14 @@
  *    Effect: reports the current cusor position as ESC [ n ; m R
  *            where n is the row and m is the column
  *
- * When multi line mode is enabled, we also use an additional escape
- * sequence. However multi line editing is disabled by default.
+ * When multi line mode is enabled, we also use two additional escape
+ * sequences. However multi line editing is disabled by default.
  *
- * CUU (Cursor Up)
+ * CUU (CUrsor Up)
  *    Sequence: ESC [ n A
  *    Effect: moves cursor up of n chars.
  *
- * CUD (Cursor Down)
+ * CUD (CUrsor Down)
  *    Sequence: ESC [ n B
  *    Effect: moves cursor down of n chars.
  *
@@ -93,11 +93,11 @@
  * are used in order to clear the screen and position the cursor at home
  * position.
  *
- * CUP (Cursor position)
+ * CUP (CUrsor Position)
  *    Sequence: ESC [ H
  *    Effect: moves the cursor to upper left corner
  *
- * ED (Erase display)
+ * ED (Erase Display)
  *    Sequence: ESC [ 2 J
  *    Effect: clear the whole screen
  *
@@ -377,11 +377,11 @@ static int completeLine(struct linenoiseState *ls) {
             }
 
             switch(c) {
-                case 9: /* tab */
+                case TAB: /* tab */
                     i = (i+1) % (lc.len+1);
                     if (i == lc.len) linenoiseBeep();
                     break;
-                case 27: /* escape */
+                case ESC: /* escape */
                     /* Re-show original buffer */
                     if (i < lc.len) refreshLine(ls);
                     stop = 1;
@@ -505,7 +505,7 @@ static void refreshMultiLine(struct linenoiseState *l) {
     int rows = (plen+l->len+l->cols-1)/l->cols; /* rows used by current buf. */
     int rpos = (plen+l->oldpos+l->cols)/l->cols; /* cursor relative row. */
     int rpos2; /* rpos after refresh. */
-    int col; /* colum position, zero-based. */
+    int col; /* column position, zero-based. */
     int old_rows = l->maxrows;
     int fd = l->ofd, j;
     struct abuf ab;
@@ -697,7 +697,7 @@ void linenoiseEditBackspace(struct linenoiseState *l) {
     }
 }
 
-/* Delete the previosu word, maintaining the cursor at the start of the
+/* Delete the previous word, maintaining the cursor at the start of the
  * current word. */
 void linenoiseEditDeletePrevWord(struct linenoiseState *l) {
     size_t old_pos = l->pos;
@@ -759,12 +759,12 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
         /* Only autocomplete when the callback is set. It returns < 0 when
          * there was an error reading from fd. Otherwise it will return the
          * character that should be handled next. */
-        if (c == 9 && completionCallback != NULL) {
+        if (c == TAB && completionCallback != NULL) {
             c = completeLine(&l);
             /* Return on errors */
             if (c < 0) return l.len;
             /* Read next character when 0 */
-            if (c == 0) continue;
+            if (c == KEY_NULL) continue;
         }
 
         switch(c) {
