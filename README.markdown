@@ -6,6 +6,7 @@ MongoDB, and Android.
 * Single and multi line editing mode with the usual key bindings implemented.
 * History handling.
 * Completion.
+* Hints (suggestions at the right of the prompt as you type).
 * About 1,100 lines of BSD license source code.
 * Only uses a subset of VT100 escapes (ANSI.SYS compatible).
 
@@ -51,3 +52,8 @@ Patches should be provided in the respect of linenoise sensibility for small
 easy to understand code.
 
 Send feedbacks to antirez at gmail
+
+## The API
+
+Linenoise is very easy to use, and reading the example shipped with the
+library will make it trivial.
