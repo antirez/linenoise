@@ -1050,6 +1050,14 @@ char *linenoise(const char *prompt) {
     }
 }
 
+/* This is just a wrapper the user may want to call in order to make sure
+ * the linenoise returned buffer is freed with the same allocator it was
+ * created with. Useful when the main program is using an alternative
+ * allocator. */
+void linenoiseFree(void *ptr) {
+    free(ptr);
+}
+
 /* ================================ History ================================= */
 
 /* Free the history, but does not reset it. Only used when we have to
