@@ -109,6 +109,7 @@
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
+#include <strings.h>  /* strcasecmp() */
 #include <stdlib.h>
 #include <ctype.h>
 #include <sys/types.h>
@@ -191,7 +192,12 @@ FILE *lndebug_fp = NULL;
         fflush(lndebug_fp); \
     } while (0)
 #else
-#define lndebug(fmt, ...)
+/* Use a static function instead of an empty macro to avoid compile warnings.
+ * The compiler will optimize this away.
+ */
+static void lndebug(const char *fmt, ...) {
+    (void) fmt;
+}
 #endif
 
 /* ======================= Low level terminal handling ====================== */
