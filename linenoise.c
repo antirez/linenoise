@@ -338,6 +338,8 @@ static void freeCompletions(linenoiseCompletions *lc) {
         free(lc->cvec[i]);
     if (lc->cvec != NULL)
         free(lc->cvec);
+    if (lc->posvec != NULL)
+        free(lc->posvec);
 }
 
 /* This is an helper function for linenoiseEdit() and is called when the
@@ -347,11 +349,11 @@ static void freeCompletions(linenoiseCompletions *lc) {
  * The state of the editing is encapsulated into the pointed linenoiseState
  * structure as described in the structure definition. */
 static int completeLine(struct linenoiseState *ls) {
-    linenoiseCompletions lc = { 0, NULL };
+    linenoiseCompletions lc = { 0, NULL, NULL };
     int nread, nwritten;
     char c = 0;
 
-    completionCallback(ls->buf,&lc);
+    completionCallback(ls->buf,&lc, ls->pos);
     if (lc.len == 0) {
         linenoiseBeep();
     } else {
@@ -362,7 +364,8 @@ static int completeLine(struct linenoiseState *ls) {
             if (i < lc.len) {
                 struct linenoiseState saved = *ls;
 
-                ls->len = ls->pos = strlen(lc.cvec[i]);
+                ls->len = strlen(lc.cvec[i]);
+                ls->pos = lc.posvec[i];
                 ls->buf = lc.cvec[i];
                 refreshLine(ls);
                 ls->len = saved.len;
@@ -392,7 +395,8 @@ static int completeLine(struct linenoiseState *ls) {
                     /* Update buffer and return */
                     if (i < lc.len) {
                         nwritten = snprintf(ls->buf,ls->buflen,"%s",lc.cvec[i]);
-                        ls->len = ls->pos = nwritten;
+                        ls->len = nwritten;
+                        ls->pos = lc.posvec[i];
                     }
                     stop = 1;
                     break;
@@ -425,20 +429,34 @@ void linenoiseSetFreeHintsCallback(linenoiseFreeHintsCallback *fn) {
  * in order to add completion options given the input string when the
  * user typed <tab>. See the example.c source code for a very easy to
  * understand example. */
-void linenoiseAddCompletion(linenoiseCompletions *lc, const char *str) {
-    size_t len = strlen(str);
-    char *copy, **cvec;
+void linenoiseAddCompletion(linenoiseCompletions *lc, const char *str, size_t pos) {
+    size_t len = strlen(str), *posvec = NULL;
+    char *copy = NULL, **cvec = NULL;
 
     copy = malloc(len+1);
-    if (copy == NULL) return;
-    memcpy(copy,str,len+1);
+    if (copy == NULL) goto free;
+
     cvec = realloc(lc->cvec,sizeof(char*)*(lc->len+1));
-    if (cvec == NULL) {
-        free(copy);
-        return;
-    }
+    if (cvec == NULL) goto free;
+
+    posvec = realloc(lc->posvec,sizeof(size_t)*(lc->len+1));
+    if (posvec == NULL) goto free;
+
+    memcpy(copy,str,len+1);
     lc->cvec = cvec;
-    lc->cvec[lc->len++] = copy;
+    lc->cvec[lc->len] = copy;
+    lc->posvec = posvec;
+    lc->posvec[lc->len] = pos;
+    lc->len++;
+    return;
+
+free:
+    if (copy)
+        free(copy);
+    if (cvec)
+        free(cvec);
+    if (posvec)
+        free(posvec);
 }
 
 /* =========================== Line editing ================================= */
