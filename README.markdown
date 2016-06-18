@@ -111,6 +111,7 @@ The followings are the history API calls:
     int linenoiseHistoryAdd(const char *line);
     int linenoiseHistorySetMaxLen(int len);
     int linenoiseHistorySave(const char *filename);
+    int linenoiseHistoryPrivSave(const char *filename);
     int linenoiseHistoryLoad(const char *filename);
 
 Use `linenoiseHistoryAdd` every time you want to add a new element
@@ -124,7 +125,9 @@ function.
 
 Linenoise has direct support for persisting the history into an history
 file. The functions `linenoiseHistorySave` and `linenoiseHistoryLoad` do
-just that. Both functions return -1 on error and 0 on success.
+just that. Both functions return -1 on error and 0 on success. You can also
+use `linenoiseHistoryPrivSave` to no group nor world access when creating
+a new history file.
 
 ## Completion
 

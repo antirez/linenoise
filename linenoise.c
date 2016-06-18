@@ -113,6 +113,7 @@
 #include <ctype.h>
 #include <sys/types.h>
 #include <sys/ioctl.h>
+#include <sys/stat.h>
 #include <unistd.h>
 #include "linenoise.h"
 
@@ -1168,6 +1169,20 @@ int linenoiseHistorySave(const char *filename) {
         fprintf(fp,"%s\n",history[j]);
     fclose(fp);
     return 0;
+}
+
+/* Save the history in the specified file, uses no group nor world
+ * permissions when creating a new file.
+ * On success 0 is returned otherwise -1 is returned. */
+int linenoiseHistoryPrivSave(const char *filename) {
+    int rc;
+    mode_t cur_mask;
+
+    cur_mask = umask(S_IRWXG | S_IRWXO);
+    rc = linenoiseHistorySave(filename);
+    umask(cur_mask);
+
+    return rc;
 }
 
 /* Load the history from the specified file. If the file does not exist
