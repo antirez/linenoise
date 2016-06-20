@@ -125,9 +125,12 @@ function.
 
 Linenoise has direct support for persisting the history into an history
 file. The functions `linenoiseHistorySave` and `linenoiseHistoryLoad` do
-just that. Both functions return -1 on error and 0 on success. You can also
-use `linenoiseHistoryPrivSave` to no group nor world access when creating
-a new history file on POSIX systems.
+just that. Both functions return -1 on error and 0 on success.
+
+On POSIX systems you can optionally use `linenoiseHistoryPrivSave` to force
+history file creation mode mask with 0077 (e.g. "u=rwx, g=, o="). This will
+block group and world from acessing a critical history file without changing
+the user or application's umask.
 
 ## Completion
 
