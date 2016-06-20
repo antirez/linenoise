@@ -61,11 +61,14 @@ void linenoiseFree(void *ptr);
 int linenoiseHistoryAdd(const char *line);
 int linenoiseHistorySetMaxLen(int len);
 int linenoiseHistorySave(const char *filename);
-int linenoiseHistoryPrivSave(const char *filename);
 int linenoiseHistoryLoad(const char *filename);
 void linenoiseClearScreen(void);
 void linenoiseSetMultiLine(int ml);
 void linenoisePrintKeyCodes(void);
+
+#if defined (__unix__) || (defined (__APPLE__) && defined (__MACH__))
+int linenoiseHistoryPrivSave(const char *filename);
+#endif
 
 #ifdef __cplusplus
 }

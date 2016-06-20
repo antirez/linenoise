@@ -1171,6 +1171,7 @@ int linenoiseHistorySave(const char *filename) {
     return 0;
 }
 
+#if defined (__unix__) || (defined (__APPLE__) && defined (__MACH__))
 /* Save the history in the specified file, uses no group nor world
  * permissions when creating a new file.
  * On success 0 is returned otherwise -1 is returned. */
@@ -1184,6 +1185,7 @@ int linenoiseHistoryPrivSave(const char *filename) {
 
     return rc;
 }
+#endif
 
 /* Load the history from the specified file. If the file does not exist
  * zero is returned and no operation is performed.

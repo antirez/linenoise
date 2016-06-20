@@ -127,7 +127,7 @@ Linenoise has direct support for persisting the history into an history
 file. The functions `linenoiseHistorySave` and `linenoiseHistoryLoad` do
 just that. Both functions return -1 on error and 0 on success. You can also
 use `linenoiseHistoryPrivSave` to no group nor world access when creating
-a new history file.
+a new history file on POSIX systems.
 
 ## Completion
 
