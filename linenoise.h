@@ -66,6 +66,10 @@ void linenoiseClearScreen(void);
 void linenoiseSetMultiLine(int ml);
 void linenoisePrintKeyCodes(void);
 
+#if defined (__unix__) || (defined (__APPLE__) && defined (__MACH__))
+int linenoiseHistoryPrivSave(const char *filename);
+#endif
+
 #ifdef __cplusplus
 }
 #endif

@@ -114,6 +114,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/ioctl.h>
+#include <sys/stat.h>
 #include <unistd.h>
 #include "linenoise.h"
 
@@ -1174,6 +1175,22 @@ int linenoiseHistorySave(const char *filename) {
     fclose(fp);
     return 0;
 }
+
+#if defined (__unix__) || (defined (__APPLE__) && defined (__MACH__))
+/* Save the history in the specified file, uses no group nor world
+ * permissions when creating a new file.
+ * On success 0 is returned otherwise -1 is returned. */
+int linenoiseHistoryPrivSave(const char *filename) {
+    int rc;
+    mode_t cur_mask;
+
+    cur_mask = umask(S_IRWXG | S_IRWXO);
+    rc = linenoiseHistorySave(filename);
+    umask(cur_mask);
+
+    return rc;
+}
+#endif
 
 /* Load the history from the specified file. If the file does not exist
  * zero is returned and no operation is performed.
