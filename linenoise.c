@@ -109,6 +109,7 @@
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
+#include <strings.h>
 #include <stdlib.h>
 #include <ctype.h>
 #include <sys/stat.h>
@@ -194,6 +195,16 @@ FILE *lndebug_fp = NULL;
 #else
 #define lndebug(fmt, ...)
 #endif
+
+/* String routines. */
+static char *strclone(const char *str) {
+    size_t size = strlen(str) + 1;
+    char *copy = malloc(size);
+    if (copy == NULL) return NULL;
+
+    memcpy(copy, str, size);
+    return copy;
+}
 
 /* ======================= Low level terminal handling ====================== */
 
@@ -702,7 +713,7 @@ void linenoiseEditHistoryNext(struct linenoiseState *l, int dir) {
         /* Update the current history entry before to
          * overwrite it with the next one. */
         free(history[history_len - 1 - l->history_index]);
-        history[history_len - 1 - l->history_index] = strdup(l->buf);
+        history[history_len - 1 - l->history_index] = strclone(l->buf);
         /* Show the new entry */
         l->history_index += (dir == LINENOISE_HISTORY_PREV) ? 1 : -1;
         if (l->history_index < 0) {
@@ -1054,11 +1065,11 @@ char *linenoise(const char *prompt) {
             len--;
             buf[len] = '\0';
         }
-        return strdup(buf);
+        return strclone(buf);
     } else {
         count = linenoiseRaw(buf,LINENOISE_MAX_LINE,prompt);
         if (count == -1) return NULL;
-        return strdup(buf);
+        return strclone(buf);
     }
 }
 
@@ -1114,7 +1125,7 @@ int linenoiseHistoryAdd(const char *line) {
 
     /* Add an heap allocated copy of the line in the history.
      * If we reached the max length, remove the older line. */
-    linecopy = strdup(line);
+    linecopy = strclone(line);
     if (!linecopy) return 0;
     if (history_len == history_max_len) {
         free(history[0]);
