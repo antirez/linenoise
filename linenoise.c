@@ -1176,7 +1176,7 @@ int linenoiseHistorySave(const char *filename) {
 }
 
 /* Load the history from the specified file. If the file does not exist
- * zero is returned and no operation is performed.
+ * -1 is returned and no operation is performed.
  *
  * If the file exists and the operation succeeded 0 is returned, otherwise
  * on error -1 is returned. */
