@@ -2,3 +2,4 @@ linenoise_example
 *.dSYM
 history.txt
 workspace.xml
+.idea
