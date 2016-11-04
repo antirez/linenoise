@@ -119,7 +119,7 @@
 
 #define LINENOISE_DEFAULT_HISTORY_MAX_LEN 100
 #define LINENOISE_MAX_LINE 4096
-static char *unsupported_term[] = {"dumb","cons25","emacs",NULL};
+static const char *unsupported_term[] = {"dumb","cons25","emacs",NULL};
 static linenoiseCompletionCallback *completionCallback = NULL;
 static linenoiseHintsCallback *hintsCallback = NULL;
 static linenoiseFreeHintsCallback *freeHintsCallback = NULL;
@@ -1004,17 +1004,18 @@ static char *linenoiseNoTTY(void) {
     size_t len = 0, maxlen = 0;
 
     while(1) {
+    	int c;
         if (len == maxlen) {
+            char *oldval = line;
             if (maxlen == 0) maxlen = 16;
             maxlen *= 2;
-            char *oldval = line;
             line = realloc(line,maxlen);
             if (line == NULL) {
                 if (oldval) free(oldval);
                 return NULL;
             }
         }
-        int c = fgetc(stdin);
+        c = fgetc(stdin);
         if (c == EOF || c == '\n') {
             if (c == EOF && len == 0) {
                 free(line);
