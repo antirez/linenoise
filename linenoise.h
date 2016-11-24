@@ -70,4 +70,8 @@ void linenoisePrintKeyCodes(void);
 }
 #endif
 
+#ifdef __cplusplus
+}
+#endif
+
 #endif /* __LINENOISE_H */
