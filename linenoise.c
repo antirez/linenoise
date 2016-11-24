@@ -175,6 +175,13 @@ enum KEY_ACTION{
 static void linenoiseAtExit(void);
 int linenoiseHistoryAdd(const char *line);
 static void refreshLine(struct linenoiseState *l);
+int linenoiseEditInsert(struct linenoiseState *l, int c);
+void linenoiseEditMoveLeft(struct linenoiseState *l);
+void linenoiseEditMoveRight(struct linenoiseState *l);
+void linenoiseEditHistoryNext(struct linenoiseState *l, int dir);
+void linenoiseEditDelete(struct linenoiseState *l);
+void linenoiseEditBackspace(struct linenoiseState *l);
+void linenoiseEditDeletePrevWord(struct linenoiseState *l);
 
 /* Debugging macro. */
 #if 0
