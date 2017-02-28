@@ -316,6 +316,29 @@ failed:
     return 80;
 }
 
+/* Get the length of the string ignoring escape-sequences */
+static int strlenPerceived(const char* str) {
+	int len = 0;
+	if (str) {
+		int escaping = 0;
+		while(*str) {
+			if (escaping) { /* was terminating char reached? */
+				if(*str >= 0x40 && *str <= 0x7E)
+					escaping = 0;
+			}
+			else if(*str == '\x1b') {
+				escaping = 1;
+				if (str[1] == '[') str++;
+			}
+			else {
+				len++;
+			}
+			str++;
+		}
+	}
+	return len;
+}
+
 /* Clear the screen. Used to handle ctrl+l */
 void linenoiseClearScreen(void) {
     if (write(STDOUT_FILENO,"\x1b[H\x1b[2J",7) <= 0) {
@@ -530,7 +553,7 @@ static void refreshSingleLine(struct linenoiseState *l) {
     snprintf(seq,64,"\x1b[0K");
     abAppend(&ab,seq,strlen(seq));
     /* Move cursor to original position. */
-    snprintf(seq,64,"\r\x1b[%dC", (int)(pos+plen));
+    snprintf(seq,64,"\r\x1b[%dC", (int)(pos+strlenPerceived(l->prompt)));
     abAppend(&ab,seq,strlen(seq));
     if (write(fd,ab.b,ab.len) == -1) {} /* Can't recover from write error. */
     abFree(&ab);
