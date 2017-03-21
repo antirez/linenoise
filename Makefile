@@ -1,23 +1,28 @@
 PREFIX = /usr/local
+CC = cc
+CFLAGS = -Os -Wall -Wextra
 
-linenoise_example: linenoise.h linenoise.c
+SRC = linenoise.c
+OBJ = $(SRC:.c=.o)
+LIB = liblinenoise.a
+INC = linenoise.h
 
-linenoise_example: linenoise.c example.c
-	$(CC) -Wall -W -Os -g -o linenoise_example linenoise.c example.c
+all: $(LIB) example
 
-lib: liblinenoise.a
+$(LIB): $(OBJ)
+	$(AR) -rcs $@ $(OBJ)
 
-liblinenoise.a: linenoise.o
-	$(AR) -rcs liblinenoise.a linenoise.o
+example: example.o $(LIB)
+	$(CC) -o $@ example.o $(LIB)
 
-.o:
-	$(CC) -Wall -W -Os -c $<
+.c.o:
+	$(CC) $(CFLAGS) -c $<
 
-install: liblinenoise.a linenoise.h
+install: $(LIB) $(INC)
 	mkdir -p $(DESTDIR)$(PREFIX)/lib
-	cp liblinenoise.a $(DESTDIR)$(PREFIX)/lib/liblinenoise.a
+	cp $(LIB) $(DESTDIR)$(PREFIX)/lib/$(LIB)
 	mkdir -p $(DESTDIR)$(PREFIX)/include
-	cp linenoise.h $(DESTDIR)$(PREFIX)/include/linenoise.h
+	cp $(INC) $(DESTDIR)$(PREFIX)/include/$(INC)
 
 clean:
-	rm -f linenoise_example liblinenoise.a linenoise.o
+	rm -f $(LIB) example example.o $(OBJ)
