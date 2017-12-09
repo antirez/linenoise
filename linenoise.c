@@ -686,7 +686,7 @@ void linenoiseEditMoveWordEnd(struct linenoiseState *l) {
     refreshLine(l);
 }
 
-/* Move cursor on the right. */
+/* Move cursor to the start of the current word. */
 void linenoiseEditMoveWordStart(struct linenoiseState *l) {
     if (l->len == 0) return;
     if (l->buf[l->pos-1] == ' ') --l->pos;
