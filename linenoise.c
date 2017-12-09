@@ -677,6 +677,25 @@ void linenoiseEditMoveRight(struct linenoiseState *l) {
     }
 }
 
+/* Move cursor to the end of the current word. */
+void linenoiseEditMoveWordEnd(struct linenoiseState *l) {
+    if (l->len == 0 || l->pos >= l->len) return;
+    if (l->buf[l->pos] == ' ')
+        while (l->pos < l->len && l->buf[l->pos] == ' ') ++l->pos;
+    while (l->pos < l->len && l->buf[l->pos] != ' ') ++l->pos;
+    refreshLine(l);
+}
+
+/* Move cursor on the right. */
+void linenoiseEditMoveWordStart(struct linenoiseState *l) {
+    if (l->len == 0) return;
+    if (l->buf[l->pos-1] == ' ') --l->pos;
+    if (l->buf[l->pos] == ' ')
+        while (l->pos > 0 && l->buf[l->pos] == ' ') --l->pos;
+    while (l->pos > 0 && l->buf[l->pos-1] != ' ') --l->pos;
+    refreshLine(l);
+}
+
 /* Move cursor to the start of the line. */
 void linenoiseEditMoveHome(struct linenoiseState *l) {
     if (l->pos != 0) {
@@ -754,6 +773,16 @@ void linenoiseEditDeletePrevWord(struct linenoiseState *l) {
     diff = old_pos - l->pos;
     memmove(l->buf+l->pos,l->buf+old_pos,l->len-old_pos+1);
     l->len -= diff;
+    refreshLine(l);
+}
+
+/* Delete the next word, maintaining the cursor at the same position */
+void linenoiseEditDeleteNextWord(struct linenoiseState *l) {
+    size_t next_word_end = l->pos;
+    while (next_word_end < l->len && l->buf[next_word_end] == ' ') ++next_word_end;
+    while (next_word_end < l->len && l->buf[next_word_end] != ' ') ++next_word_end;
+    memmove(l->buf+l->pos, l->buf+next_word_end, l->len-next_word_end);
+    l->len -= next_word_end - l->pos;
     refreshLine(l);
 }
 
@@ -864,38 +893,63 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
             linenoiseEditHistoryNext(&l, LINENOISE_HISTORY_NEXT);
             break;
         case ESC:    /* escape sequence */
-            /* Read the next two bytes representing the escape sequence.
-             * Use two calls to handle slow terminals returning the two
-             * chars at different times. */
             if (read(l.ifd,seq,1) == -1) break;
-            if (read(l.ifd,seq+1,1) == -1) break;
-
-            /* ESC [ sequences. */
-            if (seq[0] == '[') {
-                if (seq[1] >= '0' && seq[1] <= '9') {
-                    /* Extended escape, read additional byte. */
-                    if (read(l.ifd,seq+2,1) == -1) break;
-                    if (seq[2] == '~') {
+            /* ESC ? sequences */
+            if (seq[0] != '[' && seq[0] != '0') {
+                switch (seq[0]) {
+                case 'f':
+                    linenoiseEditMoveWordEnd(&l);
+                    break;
+                case 'b':
+                    linenoiseEditMoveWordStart(&l);
+                    break;
+                case 'd':
+                    linenoiseEditDeleteNextWord(&l);
+                    break;
+                }
+            } else {
+                if (read(l.ifd,seq+1,1) == -1) break;
+                /* ESC [ sequences. */
+                if (seq[0] == '[') {
+                    if (seq[1] >= '0' && seq[1] <= '9') {
+                        /* Extended escape, read additional byte. */
+                        if (read(l.ifd,seq+2,1) == -1) break;
+                        if (seq[2] == '~') {
+                            switch(seq[1]) {
+                            case '3': /* Delete key. */
+                                linenoiseEditDelete(&l);
+                                break;
+                            }
+                        }
+                    } else {
                         switch(seq[1]) {
-                        case '3': /* Delete key. */
-                            linenoiseEditDelete(&l);
+                        case 'A': /* Up */
+                            linenoiseEditHistoryNext(&l, LINENOISE_HISTORY_PREV);
+                            break;
+                        case 'B': /* Down */
+                            linenoiseEditHistoryNext(&l, LINENOISE_HISTORY_NEXT);
+                            break;
+                        case 'C': /* Right */
+                            linenoiseEditMoveRight(&l);
+                            break;
+                        case 'D': /* Left */
+                            linenoiseEditMoveLeft(&l);
+                            break;
+                        case 'H': /* Home */
+                            linenoiseEditMoveHome(&l);
+                            break;
+                        case 'F': /* End*/
+                            linenoiseEditMoveEnd(&l);
+                            break;
+                        case 'd': /* End*/
+                            linenoiseEditDeleteNextWord(&l);
                             break;
                         }
                     }
-                } else {
+                }
+                /* ESC O sequences. */
+                else if (seq[0] == 'O') {
                     switch(seq[1]) {
-                    case 'A': /* Up */
-                        linenoiseEditHistoryNext(&l, LINENOISE_HISTORY_PREV);
-                        break;
-                    case 'B': /* Down */
-                        linenoiseEditHistoryNext(&l, LINENOISE_HISTORY_NEXT);
-                        break;
-                    case 'C': /* Right */
-                        linenoiseEditMoveRight(&l);
-                        break;
-                    case 'D': /* Left */
-                        linenoiseEditMoveLeft(&l);
-                        break;
                     case 'H': /* Home */
                         linenoiseEditMoveHome(&l);
                         break;
@@ -903,18 +957,6 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
                         linenoiseEditMoveEnd(&l);
                         break;
                     }
-                }
-            }
-
-            /* ESC O sequences. */
-            else if (seq[0] == 'O') {
-                switch(seq[1]) {
-                case 'H': /* Home */
-                    linenoiseEditMoveHome(&l);
-                    break;
-                case 'F': /* End*/
-                    linenoiseEditMoveEnd(&l);
-                    break;
                 }
             }
             break;
