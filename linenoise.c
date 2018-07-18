@@ -485,6 +485,8 @@ void refreshShowHints(struct abuf *ab, struct linenoiseState *l, int plen) {
             if (bold == 1 && color == -1) color = 37;
             if (color != -1 || bold != 0)
                 snprintf(seq,64,"\033[%d;%d;49m",bold,color);
+            else
+                seq[0] = '\0';
             abAppend(ab,seq,strlen(seq));
             abAppend(ab,hint,hintlen);
             if (color != -1 || bold != 0)
