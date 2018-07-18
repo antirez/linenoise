@@ -63,8 +63,16 @@ int main(int argc, char **argv) {
             linenoiseHistorySave("history.txt"); /* Save the history on disk. */
         } else if (!strncmp(line,"/historylen",11)) {
             /* The "/historylen" command will change the history len. */
-            int len = atoi(line+11);
+            int len = atoi(line + 11);
             linenoiseHistorySetMaxLen(len);
+        } else if (!strncmp(line,"/history",8)) {
+            /* Display the current history. */
+            for (int index = 0; ; ++index) {
+                char * hist = linenoiseHistoryLine(index);
+                if (hist == NULL) break;
+                printf("%4d: %s\n", index, hist);
+                free(hist);
+            }
         } else if (line[0] == '/') {
             printf("Unreconized command: %s\n", line);
         }
