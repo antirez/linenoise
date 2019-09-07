@@ -330,7 +330,7 @@ static void linenoiseBeep(void) {
 /* ============================== Completion ================================ */
 
 /* Free a list of completion option populated by linenoiseAddCompletion(). */
-static void freeCompletions(linenoiseCompletions *lc) {
+static void freeCompletions(const linenoiseCompletions *lc) {
     size_t i;
     for (i = 0; i < lc->len; i++)
         free(lc->cvec[i]);
@@ -464,13 +464,13 @@ static void abAppend(struct abuf *ab, const char *s, int len) {
     ab->len += len;
 }
 
-static void abFree(struct abuf *ab) {
+static void abFree(const struct abuf *ab) {
     free(ab->b);
 }
 
 /* Helper of refreshSingleLine() and refreshMultiLine() to show hints
  * to the right of the prompt. */
-static void refreshShowHints(struct abuf *ab, struct linenoiseState *l, int plen) {
+static void refreshShowHints(struct abuf *ab, const struct linenoiseState *l, int plen) {
     char seq[64];
     if (hintsCallback && plen+l->len < l->cols) {
         int color = -1, bold = 0;
@@ -498,7 +498,7 @@ static void refreshShowHints(struct abuf *ab, struct linenoiseState *l, int plen
  *
  * Rewrite the currently edited line accordingly to the buffer content,
  * cursor position, and number of columns of the terminal. */
-static void refreshSingleLine(struct linenoiseState *l) {
+static void refreshSingleLine(const struct linenoiseState *l) {
     char seq[64];
     size_t plen = strlen(l->prompt);
     int fd = l->ofd;
