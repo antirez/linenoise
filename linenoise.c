@@ -945,7 +945,6 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
             break;
         }
     }
-    return l.len;
 }
 
 /* This special mode is used by linenoise in order to print scan codes
