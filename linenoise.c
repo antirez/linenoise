@@ -788,7 +788,7 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
 
     /* The latest history entry is always our current buffer, that
      * initially is just an empty string. */
-    linenoiseHistoryAdd("");
+    (void)linenoiseHistoryAdd("");
 
     if (write(l.ofd,prompt,l.plen) == -1) return -1;
     while(1) {
@@ -1190,7 +1190,7 @@ int linenoiseHistoryLoad(const char *filename) {
         p = strchr(buf,'\r');
         if (!p) p = strchr(buf,'\n');
         if (p) *p = '\0';
-        linenoiseHistoryAdd(buf);
+        (void)linenoiseHistoryAdd(buf);
     }
     fclose(fp);
     return 0;
