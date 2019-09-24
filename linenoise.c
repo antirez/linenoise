@@ -103,12 +103,15 @@
  *
  */
 
+#define _POSIX_C_SOURCE 200809L // strdup()
+
 #include <termios.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
+#include <strings.h>
 #include <stdlib.h>
 #include <ctype.h>
 #include <sys/stat.h>
@@ -192,7 +195,7 @@ FILE *lndebug_fp = NULL;
         fflush(lndebug_fp); \
     } while (0)
 #else
-#define lndebug(fmt, ...)
+#define lndebug(...)
 #endif
 
 /* ======================= Low level terminal handling ====================== */
