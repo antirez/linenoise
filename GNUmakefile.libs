@@ -16,7 +16,7 @@ LD = $(CC)
 
 DEFAULT_CPPFLAGS =
 DEFAULT_CFLAGS   = -Wall -W -O2 -g -fPIC
-DEFAULT_LDFLAGS  = -shared -Wl,-soname,$(SONAME)
+DEFAULT_LDFLAGS  = -shared -Wl,-soname,$(SONAME) -Wl,--version-script=symbol.map
 
 all: $(SHLIBNAME) $(STLIBNAME)
 
