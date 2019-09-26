@@ -1,0 +1,45 @@
+PREFIX     ?= /usr/local
+INCLUDEDIR ?= $(PREFIX)/include
+LIBDIR     ?= $(PREFIX)/lib
+
+SOURCES = linenoise.c
+HEADERS = $(SOURCES:%.c=%.h)
+OBJECTS = $(SOURCES:%.c=%.o)
+
+LIBVERSION = 0.0.0
+
+SHLIBNAME = liblinenoise.so.$(LIBVERSION)
+SONAME    = liblinenoise.so.$(word 1, $(subst ., ,$(LIBVERSION)))
+STLIBNAME = liblinenoise.a
+
+LD = $(CC)
+
+DEFAULT_CPPFLAGS =
+DEFAULT_CFLAGS   = -Wall -W -O2 -g -fPIC
+DEFAULT_LDFLAGS  = -shared -Wl,-soname,$(SONAME)
+
+all: $(SHLIBNAME) $(STLIBNAME)
+
+$(SHLIBNAME): $(OBJECTS)
+	$(LD) $(DEFAULT_LDFLAGS) $(LDFLAGS) $^ -o $@
+
+$(STLIBNAME): $(OBJECTS)
+	$(AR) $(ARFLAGS) $@ $^
+
+$(OBJECTS) : %.o : %.c
+	$(CC) $(DEFAULT_CPPFLAGS) $(CPPFLAGS) $(DEFAULT_CFLAGS) $(CFLAGS) \
+		-c $< -o $@
+
+install: $(SHLIBNAME)
+	install -d $(DESTDIR)$(INCLUDEDIR)
+	install -m 0644 $(HEADERS) $(DESTDIR)$(INCLUDEDIR)
+	install -d $(DESTDIR)$(LIBDIR)
+	install -m 0644 $(STLIBNAME) $(DESTDIR)$(LIBDIR)
+	install -m 0755 $(SHLIBNAME) $(DESTDIR)$(LIBDIR)
+	ln -sf  $(SHLIBNAME) $(DESTDIR)$(LIBDIR)/$(SONAME)
+	ln -sf  $(SHLIBNAME) $(DESTDIR)$(LIBDIR)/liblinenoise.so
+
+clean:
+	rm -f $(SHLIBNAME) $(STLIBNAME) $(OBJECTS)
+
+.PHONY: all clean install

@@ -1,3 +1,6 @@
 linenoise_example
 *.dSYM
 history.txt
+
+liblinenoise.*
+*.o
