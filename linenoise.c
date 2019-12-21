@@ -363,6 +363,8 @@ static int getColumns(int ifd, int ofd) {
     struct winsize ws;
 
     if (ioctl(1, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0) {
+        goto failed;
+
         /* ioctl() failed. Try to query the terminal itself. */
         int start, cols;
 
