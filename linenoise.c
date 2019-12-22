@@ -117,6 +117,9 @@
 #include <unistd.h>
 #include "linenoise.h"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wshorten-64-to-32"
+
 #define LINENOISE_DEFAULT_HISTORY_MAX_LEN 100
 #define LINENOISE_MAX_LINE 4096
 static char *unsupported_term[] = {"dumb","cons25","emacs",NULL};
@@ -171,6 +174,79 @@ enum KEY_ACTION{
 	ESC = 27,           /* Escape */
 	BACKSPACE =  127    /* Backspace */
 };
+
+static int stop_flag = 0;
+static long poll_time_nanosec = 0;  /* 100000000 == 100 msec */
+
+static ssize_t xread(int fildes, void *buf, size_t nbyte)
+{
+   /* Fall back to read() if there is no poll time set. */
+   if ( poll_time_nanosec == 0 ) return read( fildes, buf, nbyte );
+
+   fd_set rfds;		/* read file descriptors */
+   int    error_number = 0;
+   size_t remaining = nbyte;
+
+   while ( remaining > 0 )
+   {
+      FD_ZERO( &rfds );
+      FD_SET( fildes, &rfds );
+      const int fdlimit =  fildes + 1;
+      struct timespec timeout;
+      timeout.tv_sec = 0; /* timeout in secs */
+      timeout.tv_nsec = poll_time_nanosec;
+      int selres = pselect( fdlimit, &rfds, NULL, NULL, &timeout, NULL );
+
+      if ( selres == 0 && stop_flag )
+      {
+         stop_flag = 0;
+         *(char*)buf = CTRL_C;
+         return 1;
+      }
+
+      if ( selres < 0 )
+      {
+         error_number = errno;
+         if ( error_number == EINTR )
+            continue;
+         return -1;
+      }
+
+      if ( FD_ISSET( fildes, &rfds ) )
+      {
+         FD_CLR( fildes, &rfds );
+         ssize_t rres = read( fildes, buf, remaining );
+         if ( rres <= 0 )
+            return rres;
+         buf += rres;
+         remaining -= rres;
+      }
+   }
+
+   return nbyte;
+}
+
+/* Sets the polling interval for checking whether the user has
+ * requested exit from keyboard input. The actual number of
+ * milliseconds is operating system dependent.
+ * This should be called early at program initialization time.
+ */
+void linenoiseInputPollTime( int milliseconds )
+{
+   if ( milliseconds == 0 ) return; /* disallowed */
+   if ( milliseconds >= 1000 ) milliseconds = 999;
+   poll_time_nanosec = (long)milliseconds * 1000000L;
+}
+
+/* Requests that the keyboard input loop be terminated. It relies
+ * on the input poll time having been set.
+ */
+int linenoiseStopInput(void)
+{
+   if ( poll_time_nanosec == 0 ) return 0;
+   stop_flag = 1;
+   return 1;
+}
 
 static void linenoiseAtExit(void);
 int linenoiseHistoryAdd(const char *line);
@@ -269,7 +345,7 @@ static int getCursorPosition(int ifd, int ofd) {
 
     /* Read the response: ESC [ rows ; cols R */
     while (i < sizeof(buf)-1) {
-        if (read(ifd,buf+i,1) != 1) break;
+        if (xread(ifd,buf+i,1) != 1) break;
         if (buf[i] == 'R') break;
         i++;
     }
@@ -287,6 +363,8 @@ static int getColumns(int ifd, int ofd) {
     struct winsize ws;
 
     if (ioctl(1, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0) {
+        goto failed;
+
         /* ioctl() failed. Try to query the terminal itself. */
         int start, cols;
 
@@ -373,7 +451,7 @@ static int completeLine(struct linenoiseState *ls) {
                 refreshLine(ls);
             }
 
-            nread = read(ls->ifd,&c,1);
+            nread = xread(ls->ifd,&c,1);
             if (nread <= 0) {
                 freeCompletions(&lc);
                 return -1;
@@ -799,7 +877,7 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
         int nread;
         char seq[3];
 
-        nread = read(l.ifd,&c,1);
+        nread = xread(l.ifd,&c,1);
         if (nread <= 0) return l.len;
 
         /* Only autocomplete when the callback is set. It returns < 0 when
@@ -869,8 +947,8 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
             /* Read the next two bytes representing the escape sequence.
              * Use two calls to handle slow terminals returning the two
              * chars at different times. */
-            if (read(l.ifd,seq,1) == -1) break;
-            if (read(l.ifd,seq+1,1) == -1) break;
+            if (xread(l.ifd,seq,1) == -1) break;
+            if (xread(l.ifd,seq+1,1) == -1) break;
 
             /* ESC [ sequences. */
             if (seq[0] == '[') {
@@ -965,7 +1043,7 @@ void linenoisePrintKeyCodes(void) {
         char c;
         int nread;
 
-        nread = read(STDIN_FILENO,&c,1);
+        nread = xread(STDIN_FILENO,&c,1);
         if (nread <= 0) continue;
         memmove(quit,quit+1,sizeof(quit)-1); /* shift string to left. */
         quit[sizeof(quit)-1] = c; /* Insert current char on the right. */
@@ -1199,3 +1277,5 @@ int linenoiseHistoryLoad(const char *filename) {
     fclose(fp);
     return 0;
 }
+
+#pragma clang diagnostic pop
