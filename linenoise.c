@@ -724,7 +724,7 @@ void linenoiseEditHistoryNext(struct linenoiseState *l, int dir) {
 /* Search a line in history that start with the same characters as the 
  * currently edited line. Substitue the current line with this history */
 #define LINENOISE_SEARCH_HISTORY_FORWARD 0
-#define LINENOISE_SEARCH_HISTROY_REWERSE 1
+#define LINENOISE_SEARCH_HISTROY_REVERSE 1
 void linenoiseSearchInHistory( struct linenoiseState *l, int direction )
 {
    if (history_len > 1) {
@@ -756,7 +756,7 @@ void linenoiseSearchInHistory( struct linenoiseState *l, int direction )
 	        }
 	    }
 	}
-        else if( direction == LINENOISE_SEARCH_HISTROY_REWERSE )
+        else if( direction == LINENOISE_SEARCH_HISTROY_REVERSE )
         {
             cnt = history_len - l->history_index;
             for( ; cnt < history_len; cnt++ )
@@ -943,7 +943,7 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
                             linenoiseEditDelete(&l);
                             break;
                         case '6': /* Page down */
-                            linenoiseSearchInHistory( &l, LINENOISE_SEARCH_HISTROY_REWERSE );
+                            linenoiseSearchInHistory( &l, LINENOISE_SEARCH_HISTROY_REVERSE );
                             break;
                         case '5': /* Page up */
                             linenoiseSearchInHistory(&l, LINENOISE_SEARCH_HISTORY_FORWARD );
