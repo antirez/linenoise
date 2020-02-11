@@ -721,6 +721,66 @@ void linenoiseEditHistoryNext(struct linenoiseState *l, int dir) {
     }
 }
 
+/* Search a line in history that start with the same characters as the 
+ * currently edited line. Substitue the current line with this history */
+#define LINENOISE_SEARCH_HISTORY_FORWARD 0
+#define LINENOISE_SEARCH_HISTROY_REWERSE 1
+void linenoiseSearchInHistory( struct linenoiseState *l, int direction )
+{
+   if (history_len > 1) {
+        /* Update the current history entry before to
+         * overwrite it with the next one. */
+        free(history[history_len - 1 - l->history_index]);
+        history[history_len - 1 - l->history_index] = strdup(l->buf);
+
+        /* Search new entry */
+	int cnt;
+	if( direction == LINENOISE_SEARCH_HISTORY_FORWARD )
+	{
+            cnt = history_len - 2 - l->history_index;
+	    for( ; cnt >= 0; cnt-- )
+	    {
+                 /* Search a history entry that start with same
+                 * as the current line until the curser position */
+	        if( strncmp( l->buf, history[cnt], l->pos ) == 0 )
+	        {
+	            strncpy(l->buf,history[cnt],l->buflen);
+	            l->buf[l->buflen-1] = '\0';
+                    /* Don't change old curser postion */
+	            l->len = strlen(l->buf);
+                    /* Set history index so that we can contiune
+                     * the search on this postiion */
+                    l->history_index = history_len - 1 - cnt;
+	            refreshLine(l);
+	            return;	
+	        }
+	    }
+	}
+        else if( direction == LINENOISE_SEARCH_HISTROY_REWERSE )
+        {
+            cnt = history_len - l->history_index;
+            for( ; cnt < history_len; cnt++ )
+            {
+                /* Search a history entry that start with same
+		 * as the current line until the curser position */
+                if( strncmp( l->buf, history[cnt], l->pos ) == 0 )
+                {
+                    strncpy(l->buf,history[cnt],l->buflen);
+                    l->buf[l->buflen-1] = '\0';
+                    /* Don't change old curser position */
+                    l->len = strlen(l->buf);
+                    /* Set history index so that we can contiune
+		     * the search on this postiion */
+                    l->history_index = history_len - 1 - cnt;
+                    refreshLine(l);
+                    return;
+                }
+            }
+        }
+    }
+}
+
+
 /* Delete the character at the right of the cursor without altering the cursor
  * position. Basically this is what happens with the "Delete" keyboard key. */
 void linenoiseEditDelete(struct linenoiseState *l) {
@@ -881,6 +941,12 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
                         switch(seq[1]) {
                         case '3': /* Delete key. */
                             linenoiseEditDelete(&l);
+                            break;
+                        case '6': /* Page down */
+                            linenoiseSearchInHistory( &l, LINENOISE_SEARCH_HISTROY_REWERSE );
+                            break;
+                        case '5': /* Page up */
+                            linenoiseSearchInHistory(&l, LINENOISE_SEARCH_HISTORY_FORWARD );
                             break;
                         }
                     }
