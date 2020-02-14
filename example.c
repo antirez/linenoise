@@ -61,9 +61,9 @@ int main(int argc, char **argv) {
             printf("echo: '%s'\n", line);
             linenoiseHistoryAdd(line); /* Add to the history. */
             linenoiseHistorySave("history.txt"); /* Save the history on disk. */
-        } else if (!strncmp(line,"/historylen",11)) {
+        } else if (!strncmp(line,"/historylen ",12)) {
             /* The "/historylen" command will change the history len. */
-            int len = atoi(line+11);
+            int len = atoi(line+12);
             linenoiseHistorySetMaxLen(len);
         } else if (line[0] == '/') {
             printf("Unreconized command: %s\n", line);
