@@ -175,6 +175,7 @@ enum KEY_ACTION{
 static void linenoiseAtExit(void);
 int linenoiseHistoryAdd(const char *line);
 static void refreshLine(struct linenoiseState *l);
+size_t pstrlen(const char *s);
 
 /* Debugging macro. */
 #if 0
@@ -503,7 +504,7 @@ void refreshShowHints(struct abuf *ab, struct linenoiseState *l, int plen) {
  * cursor position, and number of columns of the terminal. */
 static void refreshSingleLine(struct linenoiseState *l) {
     char seq[64];
-    size_t plen = strlen(l->prompt);
+    size_t plen = pstrlen(l->prompt);
     int fd = l->ofd;
     char *buf = l->buf;
     size_t len = l->len;
@@ -778,7 +779,8 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
     l.buf = buf;
     l.buflen = buflen;
     l.prompt = prompt;
-    l.plen = strlen(prompt);
+    // l.plen = strlen(prompt);
+    l.plen = pstrlen(prompt);
     l.oldpos = l.pos = 0;
     l.len = 0;
     l.cols = getColumns(stdin_fd, stdout_fd);
@@ -793,7 +795,7 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
      * initially is just an empty string. */
     linenoiseHistoryAdd("");
 
-    if (write(l.ofd,prompt,l.plen) == -1) return -1;
+    if (write(l.ofd,prompt,strlen(prompt)) == -1) return -1;
     while(1) {
         char c;
         int nread;
@@ -1198,4 +1200,21 @@ int linenoiseHistoryLoad(const char *filename) {
     }
     fclose(fp);
     return 0;
+}
+
+/* Calculatethe length of the prompt string as is seen from a terminal,
+ * that is to ignore the length of possible ANSI escape codes.
+ * Therefore possible mispositions of the cursor can be avoided.
+ */
+size_t pstrlen(const char *s) {
+    size_t len = 0, i = 0;
+    while (s[i] != '\0') {
+        if (s[i] == '\033') {
+            i = strpbrk(s + i, "m") - s + 1;
+            continue;
+        }
+        len++;
+        i++;
+    }
+    return len;
 }
