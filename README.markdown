@@ -126,6 +126,24 @@ Linenoise has direct support for persisting the history into an history
 file. The functions `linenoiseHistorySave` and `linenoiseHistoryLoad` do
 just that. Both functions return -1 on error and 0 on success.
 
+## Mask mode
+
+Sometimes it is useful to allow the user to type passwords or other
+secrets that should not be displayed. For such situations linenoise supports
+a "mask mode" that will just replace the characters the user is typing 
+with `*` characters, like in the following example:
+
+    $ ./linenoise_example
+    hello> get mykey
+    echo: 'get mykey'
+    hello> /mask
+    hello> *********
+
+You can enable and disable mask mode using the following two functions:
+
+    void linenoiseMaskModeEnable(void);
+    void linenoiseMaskModeDisable(void);
+
 ## Completion
 
 Linenoise supports completion, which is the ability to complete the user
