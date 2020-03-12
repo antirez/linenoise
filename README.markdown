@@ -9,6 +9,7 @@ MongoDB, and Android.
 * Hints (suggestions at the right of the prompt as you type).
 * About 1,100 lines of BSD license source code.
 * Only uses a subset of VT100 escapes (ANSI.SYS compatible).
+* Basic UTF-8 support.
 
 ## Can a line editing library be 20k lines of code?
 
@@ -240,6 +241,16 @@ Sometimes you may want to clear the screen as a result of something the
 user typed. You can do this by calling the following function:
 
     void linenoiseClearScreen(void);
+
+## UTF-8
+
+It automatically reverts back to ASCII-like if the tty is not using UTF-8.
+
+It keeps correctly track of the positions of the chars on the screen as long as no 
+combining characters are used and as long as the application uses the right encoding.
+
+It also filters out from the input any sequence of ill-formatted UTF-8 chars (It checks 
+only the bit-structure).
 
 ## Related projects
 
