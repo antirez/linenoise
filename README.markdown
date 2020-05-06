@@ -9,6 +9,7 @@ MongoDB, and Android.
 * Hints (suggestions at the right of the prompt as you type).
 * About 1,100 lines of BSD license source code.
 * Only uses a subset of VT100 escapes (ANSI.SYS compatible).
+* Tab can be configured to either rotate all completion options on one line, or list all alternatives.
 
 ## Can a line editing library be 20k lines of code?
 
