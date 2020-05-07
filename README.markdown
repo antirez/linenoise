@@ -122,7 +122,7 @@ Note that for history to work, you have to set a length for the history
 a proper one). This is accomplished using the `linenoiseHistorySetMaxLen`
 function.
 
-Linenoise has direct support for persisting the history into an history
+Linenoise has direct support for persisting the history into a history
 file. The functions `linenoiseHistorySave` and `linenoiseHistoryLoad` do
 just that. Both functions return -1 on error and 0 on success.
 
