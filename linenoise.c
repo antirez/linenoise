@@ -402,6 +402,10 @@ static int completeLine(struct linenoiseState *ls) {
                     /* Re-show original buffer */
                     if (i < lc.len) refreshLine(ls);
                     stop = 1;
+
+                    /* do not pass this ESC because
+                     * it is not an "edit" input. */
+                    c = KEY_NULL;
                     break;
                 default:
                     /* Update buffer and return */
