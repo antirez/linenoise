@@ -174,7 +174,6 @@ enum KEY_ACTION{
 };
 
 static void linenoiseAtExit(void);
-int linenoiseHistoryAdd(const char *line);
 static void refreshLine(struct linenoiseState *l);
 
 /* Debugging macro. */
@@ -1222,4 +1221,13 @@ int linenoiseHistoryLoad(const char *filename) {
     }
     fclose(fp);
     return 0;
+}
+
+/* Provide access to history. */
+int linenoiseHistoryGet(char ***_history, int *_history_len) {
+  if (_history)
+    *_history = history;
+  if (_history_len)
+    *_history_len = history_len;
+  return 0;
 }
