@@ -102,7 +102,7 @@ You can disable it using `0` as argument.
 
 ## History
 
-Linenoise supporst history, so that the user does not have to retype
+Linenoise supports history, so that the user does not have to retype
 again and again the same things, but can use the down and up arrows in order
 to search and re-edit already inserted lines of text.
 
