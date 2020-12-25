@@ -119,7 +119,10 @@
 
 #define LINENOISE_DEFAULT_HISTORY_MAX_LEN 100
 #define LINENOISE_MAX_LINE 4096
+#define LINENOISE_MODE_NORMAL (1 << 0)
+#define LINENOISE_MODE_REVERSE_HISTORY_SEARCH (1 << 1)
 static char *unsupported_term[] = {"dumb","cons25","emacs",NULL};
+static char *reverseHistoryPrompt = "(reverse-i-search)`': ";
 static linenoiseCompletionCallback *completionCallback = NULL;
 static linenoiseHintsCallback *hintsCallback = NULL;
 static linenoiseFreeHintsCallback *freeHintsCallback = NULL;
@@ -149,6 +152,7 @@ struct linenoiseState {
     size_t cols;        /* Number of columns in terminal. */
     size_t maxrows;     /* Maximum num of rows used so far (multiline mode) */
     int history_index;  /* The history index we are currently editing. */
+    uint8_t mode;       /* The line mode: currently normal or reverse-history-search. */
 };
 
 enum KEY_ACTION{
@@ -159,6 +163,7 @@ enum KEY_ACTION{
 	CTRL_D = 4,         /* Ctrl-d */
 	CTRL_E = 5,         /* Ctrl-e */
 	CTRL_F = 6,         /* Ctrl-f */
+	CTRL_G = 7,         /* Ctrl-g */
 	CTRL_H = 8,         /* Ctrl-h */
 	TAB = 9,            /* Tab */
 	CTRL_K = 11,        /* Ctrl+k */
@@ -166,6 +171,7 @@ enum KEY_ACTION{
 	ENTER = 13,         /* Enter */
 	CTRL_N = 14,        /* Ctrl-n */
 	CTRL_P = 16,        /* Ctrl-p */
+	CTRL_R = 18,        /* Ctrl-r */
 	CTRL_T = 20,        /* Ctrl-t */
 	CTRL_U = 21,        /* Ctrl+u */
 	CTRL_W = 23,        /* Ctrl+w */
@@ -517,12 +523,23 @@ void refreshShowHints(struct abuf *ab, struct linenoiseState *l, int plen) {
  * cursor position, and number of columns of the terminal. */
 static void refreshSingleLine(struct linenoiseState *l) {
     char seq[64];
-    size_t plen = strlen(l->prompt);
+    size_t plen;
     int fd = l->ofd;
     char *buf = l->buf;
     size_t len = l->len;
     size_t pos = l->pos;
     struct abuf ab;
+    const char *curPrompt;
+
+    if ((l->mode & LINENOISE_MODE_NORMAL) > 0) {
+        printf("Hey");
+        curPrompt = l->prompt;
+    } else if ((l->mode & LINENOISE_MODE_REVERSE_HISTORY_SEARCH) > 0) {
+        printf("Ho");
+        curPrompt = reverseHistoryPrompt;
+    }
+
+    plen = strlen(curPrompt);
 
     while((plen+pos) >= l->cols) {
         buf++;
@@ -538,7 +555,7 @@ static void refreshSingleLine(struct linenoiseState *l) {
     snprintf(seq,64,"\r");
     abAppend(&ab,seq,strlen(seq));
     /* Write the prompt and the current buffer content */
-    abAppend(&ab,l->prompt,strlen(l->prompt));
+    abAppend(&ab,curPrompt,strlen(curPrompt));
     if (maskmode == 1) {
         while (len--) abAppend(&ab,"*",1);
     } else {
@@ -745,6 +762,22 @@ void linenoiseEditHistoryNext(struct linenoiseState *l, int dir) {
     }
 }
 
+/* Start history search mode. */
+void linenoiseStartReverseSearch(struct linenoiseState *l) {
+    l->mode &= ~LINENOISE_MODE_NORMAL;
+    l->mode |= LINENOISE_MODE_REVERSE_HISTORY_SEARCH;
+    refreshLine(l);
+}
+
+/* End history search mode. */
+void linenoiseStopReverseSearch(struct linenoiseState *l) {
+    l->mode &= ~LINENOISE_MODE_REVERSE_HISTORY_SEARCH;
+    l->mode |= LINENOISE_MODE_NORMAL;
+    refreshLine(l);
+}
+
+
+
 /* Delete the character at the right of the cursor without altering the cursor
  * position. Basically this is what happens with the "Delete" keyboard key. */
 void linenoiseEditDelete(struct linenoiseState *l) {
@@ -808,6 +841,7 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
     l.cols = getColumns(stdin_fd, stdout_fd);
     l.maxrows = 0;
     l.history_index = 0;
+    l.mode |= LINENOISE_MODE_NORMAL;
 
     /* Buffer starts empty. */
     l.buf[0] = '\0';
@@ -883,8 +917,14 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
         case CTRL_F:     /* ctrl-f */
             linenoiseEditMoveRight(&l);
             break;
+        case CTRL_G:     /* ctrl-g */
+            linenoiseStopReverseSearch(&l);
+            break;
         case CTRL_P:    /* ctrl-p */
             linenoiseEditHistoryNext(&l, LINENOISE_HISTORY_PREV);
+            break;
+        case CTRL_R:    /* ctrl-r */
+            linenoiseStartReverseSearch(&l);
             break;
         case CTRL_N:    /* ctrl-n */
             linenoiseEditHistoryNext(&l, LINENOISE_HISTORY_NEXT);
