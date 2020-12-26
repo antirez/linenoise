@@ -119,10 +119,9 @@
 
 #define LINENOISE_DEFAULT_HISTORY_MAX_LEN 100
 #define LINENOISE_MAX_LINE 4096
-#define LINENOISE_MODE_NORMAL (1 << 0)
-#define LINENOISE_MODE_REVERSE_HISTORY_SEARCH (1 << 1)
+#define LINENOISE_MODE_REVERSE_HISTORY_SEARCH (1 << 0)
 static char *unsupported_term[] = {"dumb","cons25","emacs",NULL};
-static char *reverseHistoryPrompt = "(reverse-i-search)`': ";
+static char *reverseHistoryPrompt = "(reverse-i-search)`%s': ";
 static linenoiseCompletionCallback *completionCallback = NULL;
 static linenoiseHintsCallback *hintsCallback = NULL;
 static linenoiseFreeHintsCallback *freeHintsCallback = NULL;
@@ -529,14 +528,14 @@ static void refreshSingleLine(struct linenoiseState *l) {
     size_t len = l->len;
     size_t pos = l->pos;
     struct abuf ab;
-    const char *curPrompt;
+    char *curPrompt;
 
-    if ((l->mode & LINENOISE_MODE_NORMAL) > 0) {
-        printf("Hey");
-        curPrompt = l->prompt;
-    } else if ((l->mode & LINENOISE_MODE_REVERSE_HISTORY_SEARCH) > 0) {
-        printf("Ho");
-        curPrompt = reverseHistoryPrompt;
+    if ((l->mode & LINENOISE_MODE_REVERSE_HISTORY_SEARCH) > 0) {
+        curPrompt = malloc(strlen((reverseHistoryPrompt)) + strlen(buf));
+        sprintf(curPrompt, reverseHistoryPrompt, buf);
+    } else {
+        curPrompt = malloc(strlen(l->prompt));
+        strcpy(curPrompt,l->prompt);
     }
 
     plen = strlen(curPrompt);
@@ -764,7 +763,6 @@ void linenoiseEditHistoryNext(struct linenoiseState *l, int dir) {
 
 /* Start history search mode. */
 void linenoiseStartReverseSearch(struct linenoiseState *l) {
-    l->mode &= ~LINENOISE_MODE_NORMAL;
     l->mode |= LINENOISE_MODE_REVERSE_HISTORY_SEARCH;
     refreshLine(l);
 }
@@ -772,7 +770,6 @@ void linenoiseStartReverseSearch(struct linenoiseState *l) {
 /* End history search mode. */
 void linenoiseStopReverseSearch(struct linenoiseState *l) {
     l->mode &= ~LINENOISE_MODE_REVERSE_HISTORY_SEARCH;
-    l->mode |= LINENOISE_MODE_NORMAL;
     refreshLine(l);
 }
 
@@ -841,7 +838,7 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
     l.cols = getColumns(stdin_fd, stdout_fd);
     l.maxrows = 0;
     l.history_index = 0;
-    l.mode |= LINENOISE_MODE_NORMAL;
+    l.mode = 0;
 
     /* Buffer starts empty. */
     l.buf[0] = '\0';
