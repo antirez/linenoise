@@ -142,6 +142,7 @@ struct linenoiseState {
     int ifd;            /* Terminal stdin file descriptor. */
     int ofd;            /* Terminal stdout file descriptor. */
     char *buf;          /* Edited line buffer. */
+    char *search;       /* History search input. */
     size_t buflen;      /* Edited line buffer size. */
     const char *prompt; /* Prompt to display. */
     size_t plen;        /* Prompt length. */
@@ -200,6 +201,23 @@ FILE *lndebug_fp = NULL;
 #else
 #define lndebug(fmt, ...)
 #endif
+
+/* Debugging macro. */
+#if 1
+
+FILE *debug_fp = NULL;
+#define debug(...) \
+    do { \
+        if (debug_fp == NULL) { \
+            debug_fp = fopen("/tmp/debug.txt","a"); \
+        } \
+        fprintf(debug_fp, ", " __VA_ARGS__); \
+        fflush(debug_fp); \
+    } while (0)
+#else
+#define lndebug(fmt, ...)
+#endif
+
 
 /* ======================= Low level terminal handling ====================== */
 
@@ -532,7 +550,7 @@ static void refreshSingleLine(struct linenoiseState *l) {
 
     if ((l->mode & LINENOISE_MODE_REVERSE_HISTORY_SEARCH) > 0) {
         curPrompt = malloc(strlen((reverseHistoryPrompt)) + strlen(buf));
-        sprintf(curPrompt, reverseHistoryPrompt, buf);
+        sprintf(curPrompt, reverseHistoryPrompt, l->search);
     } else {
         curPrompt = malloc(strlen(l->prompt));
         strcpy(curPrompt,l->prompt);
@@ -570,6 +588,7 @@ static void refreshSingleLine(struct linenoiseState *l) {
     abAppend(&ab,seq,strlen(seq));
     if (write(fd,ab.b,ab.len) == -1) {} /* Can't recover from write error. */
     abFree(&ab);
+    free(curPrompt);
 }
 
 /* Multi line low level line refresh.
@@ -673,6 +692,26 @@ static void refreshLine(struct linenoiseState *l) {
         refreshSingleLine(l);
 }
 
+/* Check if history search mode is active. */
+int linenoiseReverseSearching(struct linenoiseState *l) {
+    return ((l->mode & LINENOISE_MODE_REVERSE_HISTORY_SEARCH) > 0);
+}
+
+/* End history search mode. */
+void linenoiseStopReverseSearch(struct linenoiseState *l) {
+    l->mode &= ~LINENOISE_MODE_REVERSE_HISTORY_SEARCH;
+    refreshLine(l);
+}
+
+/* Start history search mode. */
+void linenoiseStartReverseSearch(struct linenoiseState *l) {
+    if (linenoiseReverseSearching(l)) {
+        linenoiseStopReverseSearch(l);
+    }
+    l->mode |= LINENOISE_MODE_REVERSE_HISTORY_SEARCH;
+    refreshLine(l);
+}
+
 /* Insert the character 'c' at cursor current position.
  *
  * On error writing to the terminal -1 is returned, otherwise 0. */
@@ -703,6 +742,31 @@ int linenoiseEditInsert(struct linenoiseState *l, char c) {
     return 0;
 }
 
+int linenoiseHistorySearch(struct linenoiseState *l) {
+    if (history) {
+        int j;
+        if (l->pos > 0 && l->len > 0) {
+            while (l->len > 0) {
+                memmove(l->buf+l->pos-1,l->buf+l->pos,l->len-l->pos);
+                l->pos--;
+                l->len--;
+                l->buf[l->len] = '\0';
+            }
+        }
+        for (j = history_len - 1; j > -1; j--) {
+            if (strncmp(l->search, history[j], strlen(l->search)) == 0){
+                size_t itemLen = strlen(history[j]);
+                for (size_t i = 0; i < itemLen; i++) {
+                    if (linenoiseEditInsert(l,history[j][i])) return -1;
+                }
+                break;
+            }
+        }
+    }
+    refreshLine(l);
+    return 0;
+}
+
 /* Move cursor on the left. */
 void linenoiseEditMoveLeft(struct linenoiseState *l) {
     if (l->pos > 0) {
@@ -721,6 +785,9 @@ void linenoiseEditMoveRight(struct linenoiseState *l) {
 
 /* Move cursor to the start of the line. */
 void linenoiseEditMoveHome(struct linenoiseState *l) {
+    if (linenoiseReverseSearching(l)) {
+        linenoiseStopReverseSearch(l);
+    }
     if (l->pos != 0) {
         l->pos = 0;
         refreshLine(l);
@@ -729,6 +796,9 @@ void linenoiseEditMoveHome(struct linenoiseState *l) {
 
 /* Move cursor to the end of the line. */
 void linenoiseEditMoveEnd(struct linenoiseState *l) {
+    if (linenoiseReverseSearching(l)) {
+        linenoiseStopReverseSearch(l);
+    }
     if (l->pos != l->len) {
         l->pos = l->len;
         refreshLine(l);
@@ -740,6 +810,10 @@ void linenoiseEditMoveEnd(struct linenoiseState *l) {
 #define LINENOISE_HISTORY_NEXT 0
 #define LINENOISE_HISTORY_PREV 1
 void linenoiseEditHistoryNext(struct linenoiseState *l, int dir) {
+    if (linenoiseReverseSearching(l)) {
+        linenoiseStopReverseSearch(l);
+    }
+
     if (history_len > 1) {
         /* Update the current history entry before to
          * overwrite it with the next one. */
@@ -761,20 +835,6 @@ void linenoiseEditHistoryNext(struct linenoiseState *l, int dir) {
     }
 }
 
-/* Start history search mode. */
-void linenoiseStartReverseSearch(struct linenoiseState *l) {
-    l->mode |= LINENOISE_MODE_REVERSE_HISTORY_SEARCH;
-    refreshLine(l);
-}
-
-/* End history search mode. */
-void linenoiseStopReverseSearch(struct linenoiseState *l) {
-    l->mode &= ~LINENOISE_MODE_REVERSE_HISTORY_SEARCH;
-    refreshLine(l);
-}
-
-
-
 /* Delete the character at the right of the cursor without altering the cursor
  * position. Basically this is what happens with the "Delete" keyboard key. */
 void linenoiseEditDelete(struct linenoiseState *l) {
@@ -788,13 +848,18 @@ void linenoiseEditDelete(struct linenoiseState *l) {
 
 /* Backspace implementation. */
 void linenoiseEditBackspace(struct linenoiseState *l) {
-    if (l->pos > 0 && l->len > 0) {
+    if (linenoiseReverseSearching(l)) {
+        if(strlen(l->search) > 0) {
+            l->search[strlen(l->search)-1] = '\0';
+            linenoiseHistorySearch(l);
+        }
+    } else if (l->pos > 0 && l->len > 0) {
         memmove(l->buf+l->pos-1,l->buf+l->pos,l->len-l->pos);
         l->pos--;
         l->len--;
         l->buf[l->len] = '\0';
-        refreshLine(l);
     }
+    refreshLine(l);
 }
 
 /* Delete the previosu word, maintaining the cursor at the start of the
@@ -839,6 +904,7 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
     l.maxrows = 0;
     l.history_index = 0;
     l.mode = 0;
+    l.search = "";
 
     /* Buffer starts empty. */
     l.buf[0] = '\0';
@@ -982,14 +1048,30 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
             }
             break;
         default:
-            if (linenoiseEditInsert(&l,c)) return -1;
+            if (linenoiseReverseSearching(&l)) {
+                char *searchCopy = malloc(strlen(l.search));
+                strcpy(searchCopy,l.search);
+                l.search = malloc(strlen(l.search) + 1);
+                strcpy(l.search,searchCopy);
+                strncat(l.search,&c,1);
+                free(searchCopy);
+                linenoiseHistorySearch(&l);
+            } else {
+                if (linenoiseEditInsert(&l,c)) return -1;
+            }
             break;
         case CTRL_U: /* Ctrl+u, delete the whole line. */
+            if (linenoiseReverseSearching(&l)) {
+                linenoiseStopReverseSearch(&l);
+            }
             buf[0] = '\0';
             l.pos = l.len = 0;
             refreshLine(&l);
             break;
         case CTRL_K: /* Ctrl+k, delete from current to end of line. */
+            if (linenoiseReverseSearching(&l)) {
+                linenoiseStopReverseSearch(&l);
+            }
             buf[l.pos] = '\0';
             l.len = l.pos;
             refreshLine(&l);
