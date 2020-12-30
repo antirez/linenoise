@@ -770,7 +770,6 @@ void linenoiseEditHistoryNext(struct linenoiseState *l, int dir) {
     if (searchmode) {
         linenoiseStopReverseSearch(l);
     }
-
     if (history_len > 1) {
         /*
          * Find item in history that matches string
