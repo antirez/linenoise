@@ -205,16 +205,16 @@ FILE *lndebug_fp = NULL;
 #define lndebug(fmt, ...)
 #endif
 
-/* Debugging macro. */
+/* Debugging macro: log arguments to file. */
 #if 1
-FILE *lndebug_fp = NULL;
+FILE *debug_fp = NULL;
 #define debug(...) \
     do { \
-        if (lndebug_fp == NULL) { \
-            lndebug_fp = fopen("/tmp/lndebug.txt","a"); \
+        if (debug_fp == NULL) { \
+            debug_fp = fopen("/tmp/debug.txt","a"); \
         } \
-        fprintf(lndebug_fp, ", " __VA_ARGS__); \
-        fflush(lndebug_fp); \
+        fprintf(debug_fp, __VA_ARGS__); \
+        fflush(debug_fp); \
     } while (0)
 #else
 #define lndebug(fmt, ...)
@@ -789,13 +789,6 @@ void linenoiseEditHistoryNext(struct linenoiseState *l, int dir) {
         linenoiseStopReverseSearch(l);
     }
     if (history_len > 1) {
-        /*
-         * Find item in history that matches string
-         * Instead of breaking at the found item, find the next item and return that instead
-         * No..
-         * Like with history next item, we need to keep track...
-         */
-
         /* Update the current history entry before to
          * overwrite it with the next one. */
         free(history[history_len - 1 - l->history_index]);
@@ -1124,7 +1117,6 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
             }
             break;
         default:
-            debug("regular %c %d", c, searchmode);
             if (searchmode) {
                 linenoiseSearchModeEditInsert(&l,c);
             } else {
@@ -1158,7 +1150,6 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
             refreshLine(&l);
             break;
         case CTRL_W: /* ctrl+w, delete previous word */
-            debug("del word %c", c);
             linenoiseEditDeletePrevWord(&l);
             break;
         }
