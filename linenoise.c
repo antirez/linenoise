@@ -120,8 +120,8 @@
 #define LINENOISE_DEFAULT_HISTORY_MAX_LEN 100
 #define LINENOISE_MAX_LINE 4096
 static char *unsupported_term[] = {"dumb","cons25","emacs",NULL};
-static char *reverseHistoryPrompt = "(reverse-i-search)`%s': ";
-static char *reverseHistoryFailedPrompt = "(failed reverse-i-search)`%s': ";
+static char *reverseHistoryPrompt = "(reverse-i-search)";
+static char *reverseHistoryFailedPrompt = "(failed reverse-i-search)";
 static linenoiseCompletionCallback *completionCallback = NULL;
 static linenoiseHintsCallback *hintsCallback = NULL;
 static linenoiseFreeHintsCallback *freeHintsCallback = NULL;
@@ -204,6 +204,22 @@ FILE *lndebug_fp = NULL;
 #else
 #define lndebug(fmt, ...)
 #endif
+
+/* Debugging macro. */
+#if 1
+FILE *lndebug_fp = NULL;
+#define debug(...) \
+    do { \
+        if (lndebug_fp == NULL) { \
+            lndebug_fp = fopen("/tmp/lndebug.txt","a"); \
+        } \
+        fprintf(lndebug_fp, ", " __VA_ARGS__); \
+        fflush(lndebug_fp); \
+    } while (0)
+#else
+#define lndebug(fmt, ...)
+#endif
+
 
 /* ======================= Low level terminal handling ====================== */
 
@@ -533,16 +549,18 @@ static void refreshSingleLine(struct linenoiseState *l) {
     size_t pos = l->pos;
     struct abuf ab;
     const char *prompt = NULL;
-    char *temp;
+    char *temp = NULL;
 
     if (searchmode) {
         if (l->search->failed) {
-            temp = malloc(strlen(reverseHistoryFailedPrompt)+strlen(l->search->query)-2);
-            sprintf(temp, reverseHistoryFailedPrompt, l->search->query);
+            int len = strlen(reverseHistoryFailedPrompt)+l->search->len+4;
+            temp = malloc(len);
+            snprintf(temp,len,"%s`%s': ",reverseHistoryFailedPrompt,l->search->buf);
             prompt = temp;
         } else {
-            temp = malloc(strlen(reverseHistoryPrompt)+strlen(l->search->query)-2);
-            sprintf(temp, reverseHistoryPrompt, l->search->query);
+            int len = strlen(reverseHistoryPrompt)+l->search->len+4;
+            temp = malloc(len);
+            snprintf(temp,len,"%s`%s': ",reverseHistoryPrompt,l->search->buf);
             prompt = temp;
         }
     } else {
@@ -812,11 +830,12 @@ void linenoiseEditDelete(struct linenoiseState *l) {
 /* Backspace implementation. */
 void linenoiseEditBackspace(struct linenoiseState *l) {
     if (searchmode) {
-        size_t search_len = strlen(l->search->query);
+        int search_len = l->search->len;
         if(search_len > 0) {
-            l->search->query[strlen(l->search->query)-1] = '\0';
+            l->search->buf[search_len-1] = '\0';
+            l->search->len--;
             if (search_len == 1) {
-                l->search->index = -1;
+                l->search->index = history_len-1;
             }
             linenoiseSearchHistory(l);
         }
@@ -848,10 +867,10 @@ void linenoiseEditDeletePrevWord(struct linenoiseState *l) {
 /* End history search mode. */
 void linenoiseStopReverseSearch(struct linenoiseState *l) {
     searchmode = 0;
-    free(l->search->query);
-    l->search->query = "";
-    l->search->index = -1;
+    l->search->index = history_len-1;
     l->search->failed = 0;
+    l->search->buf[0] = '\0';
+    l->search->len = 0;
     refreshLine(l);
 }
 
@@ -863,7 +882,7 @@ void linenoiseStartReverseSearch(struct linenoiseState *l) {
 
 /* Search history. */
 int linenoiseSearchHistory(struct linenoiseState *l) {
-    size_t search_len = strlen(l->search->query);
+    size_t search_len = l->search->len;
     int hit_count = 0;
     int start = l->search->index > -1 ? l->search->index: history_len - 1;
     l->search->failed = 0;
@@ -874,17 +893,16 @@ int linenoiseSearchHistory(struct linenoiseState *l) {
         return -1;
     }
 
-    int j;
+    // Clear the current edited line.
     if (l->pos > 0 && l->len > 0) {
-        while (l->len > 0) {
-            memmove(l->buf+l->pos-1,l->buf+l->pos,l->len-l->pos);
-            l->pos--;
-            l->len--;
-            l->buf[l->len] = '\0';
-        }
+        l->len = 0;
+        l->pos = 0;
+        l->buf[0] = '\0';
     }
+
+    int j;
     for (j = start; j > -1; j--) {
-        if (strncmp(l->search->query, history[j], strlen(l->search->query)) == 0) {
+        if (strncmp(l->search->buf, history[j], l->search->len) == 0) {
             size_t itemLen = strlen(history[j]);
             for (size_t i = 0; i < itemLen; i++) {
                 if (linenoiseEditInsert(l,history[j][i])) return -1;
@@ -904,15 +922,18 @@ int linenoiseSearchHistory(struct linenoiseState *l) {
 /* Insert the character 'c' into current history search buffer,
  * then perform a search. */
 void linenoiseSearchModeEditInsert(struct linenoiseState *l, char c) {
-    size_t len = strlen(l->search->query)+1;
-    char *searchCopy = malloc(sizeof(char*)*len);
-    free(l->search->query);
-    strncpy(searchCopy,l->search->query,len);
-    l->search->query = malloc(sizeof(char*)*(len+1));
-    strncpy(l->search->query,searchCopy,len);
-    strncat(l->search->query,&c,1);
-    free(searchCopy);
-    linenoiseSearchHistory(l);
+    if (l->search->len < l->search->buflen) {
+        int newlen = l->search->len+1;
+        if (l->search->len) {
+            char *searchCopy = malloc(sizeof(char*)*l->search->len);
+            strncpy(searchCopy,l->search->buf,l->search->len);
+            strncpy(l->search->buf,searchCopy,l->search->len);
+            free(searchCopy);
+        }
+        strncat(l->search->buf,&c,1);
+        l->search->len = newlen;
+        linenoiseSearchHistory(l);
+    }
 }
 
 /* This function is the core of the line editing capability of linenoise.
@@ -926,6 +947,8 @@ void linenoiseSearchModeEditInsert(struct linenoiseState *l, char c) {
 static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, const char *prompt)
 {
     struct linenoiseState l;
+    char searchBuf[buflen];
+    searchState search;
 
     /* Populate the linenoise state that we pass to functions implementing
      * specific editing functionalities. */
@@ -941,12 +964,17 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
     l.maxrows = 0;
     l.history_index = 0;
 
-    searchState searchState = {0, 0, ""};
-    l.search = &searchState;
-
     /* Buffer starts empty. */
     l.buf[0] = '\0';
     l.buflen--; /* Make sure there is always space for the nulterm */
+
+    l.search = &search;
+    search.index = history_len-1;
+    search.failed = 0;
+    search.len = 0;
+    search.buf = searchBuf;
+    search.buf[0] = '\0';
+    search.buflen--;
 
     /* The latest history entry is always our current buffer, that
      * initially is just an empty string. */
@@ -1096,6 +1124,7 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
             }
             break;
         default:
+            debug("regular %c %d", c, searchmode);
             if (searchmode) {
                 linenoiseSearchModeEditInsert(&l,c);
             } else {
@@ -1129,6 +1158,7 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
             refreshLine(&l);
             break;
         case CTRL_W: /* ctrl+w, delete previous word */
+            debug("del word %c", c);
             linenoiseEditDeletePrevWord(&l);
             break;
         }
