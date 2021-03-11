@@ -830,11 +830,12 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
          * there was an error reading from fd. Otherwise it will return the
          * character that should be handled next. */
         if (c == 9 && completionCallback != NULL) {
-            c = completeLine(&l);
+            int cint = completeLine(&l);
             /* Return on errors */
-            if (c < 0) return l.len;
+            if (cint < 0) return l.len;
             /* Read next character when 0 */
-            if (c == 0) continue;
+            if (cint == 0) continue;
+            c = (char)cint;
         }
 
         switch(c) {
