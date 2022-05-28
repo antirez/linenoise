@@ -767,7 +767,7 @@ void linenoiseEditBackspace(struct linenoiseState *l) {
     }
 }
 
-/* Delete the previosu word, maintaining the cursor at the start of the
+/* Delete the previous word, maintaining the cursor at the start of the
  * current word. */
 void linenoiseEditDeletePrevWord(struct linenoiseState *l) {
     size_t old_pos = l->pos;
@@ -780,6 +780,41 @@ void linenoiseEditDeletePrevWord(struct linenoiseState *l) {
     diff = old_pos - l->pos;
     memmove(l->buf+l->pos,l->buf+old_pos,l->len-old_pos+1);
     l->len -= diff;
+    refreshLine(l);
+}
+
+/* Jump to the begining of the previous word */
+void linenoiseEditPrevWord(struct linenoiseState *l) {
+    while (l->pos > 0 && l->buf[l->pos-1] == ' ')
+        l->pos--;
+    while (l->pos > 0 && l->buf[l->pos-1] != ' ')
+        l->pos--;
+    refreshLine(l);
+}
+
+/* Jump to the space after the current word */
+void linenoiseEditNextWord(struct linenoiseState *l) {
+
+    while (l->pos < l->len)
+    {
+        if (l->buf[l->pos] != ' ')
+            break;
+        if (l->buf[l->pos] == '\0')
+            break;
+
+        l->pos++;
+    }
+
+    while (l->pos < l->len)
+    {
+        if (l->buf[l->pos] == ' ')
+            break;
+        if (l->buf[l->pos] == '\0')
+            break;
+
+        l->pos++;
+    }
+
     refreshLine(l);
 }
 
@@ -821,7 +856,7 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
     while(1) {
         char c;
         int nread;
-        char seq[3];
+        char seq[5];
 
         nread = read(l.ifd,&c,1);
         if (nread <= 0) return l.len;
@@ -901,12 +936,32 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
                 if (seq[1] >= '0' && seq[1] <= '9') {
                     /* Extended escape, read additional byte. */
                     if (read(l.ifd,seq+2,1) == -1) break;
-                    if (seq[2] == '~') {
+                    switch (seq[2]) {
+                    case '~':
                         switch(seq[1]) {
                         case '3': /* Delete key. */
                             linenoiseEditDelete(&l);
                             break;
                         }
+                        break;
+
+                    case ';': ;
+                        /* Even more extended escape, read additional 2 bytes */
+                        if (read(l.ifd,seq+3,1) == -1) break;
+                        if (read(l.ifd,seq+4,1) == -1) break;
+                        if (seq[3] == '5')
+                        {
+                            switch(seq[4])
+                            {
+                            case 'D': // Ctrl Left
+                                linenoiseEditPrevWord(&l);
+                                break;
+                            case 'C': // Ctrl Right
+                                linenoiseEditNextWord(&l);
+                                break;
+                            }
+                        }
+                        break;
                     }
                 } else {
                     switch(seq[1]) {
