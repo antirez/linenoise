@@ -55,7 +55,7 @@ int main(int argc, char **argv) {
      *
      * The typed string is returned as a malloc() allocated string by
      * linenoise, so the user needs to free() it. */
-    
+
     while((line = linenoise("hello> ")) != NULL) {
         /* Do something with the string. */
         if (line[0] != '\0' && line[0] != '/') {
