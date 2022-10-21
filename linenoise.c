@@ -75,7 +75,7 @@
  *
  * DSR (Device Status Report)
  *    Sequence: ESC [ 6 n
- *    Effect: reports the current cusor position as ESC [ n ; m R
+ *    Effect: reports the current cursor position as ESC [ n ; m R
  *            where n is the row and m is the column
  *
  * When multi line mode is enabled, we also use an additional escape
@@ -517,13 +517,16 @@ void refreshShowHints(struct abuf *ab, struct linenoiseState *l, int plen) {
  * cursor position, and number of columns of the terminal. */
 static void refreshSingleLine(struct linenoiseState *l) {
     char seq[64];
-    size_t plen = strlen(l->prompt);
+    size_t plen = l->plen;
     int fd = l->ofd;
     char *buf = l->buf;
     size_t len = l->len;
     size_t pos = l->pos;
     struct abuf ab;
 
+    if (plen != l->plen) {
+      abort();
+    }
     while((plen+pos) >= l->cols) {
         buf++;
         len--;
@@ -534,17 +537,15 @@ static void refreshSingleLine(struct linenoiseState *l) {
     }
 
     abInit(&ab);
-    /* Cursor to left edge */
-    snprintf(seq,64,"\r");
+    /* Move the cursor to left edge then move right to skip over the prompt.*/
+    snprintf(seq,64,"\r\x1b[%dC",(int)plen);
     abAppend(&ab,seq,strlen(seq));
-    /* Write the prompt and the current buffer content */
-    abAppend(&ab,l->prompt,strlen(l->prompt));
     if (maskmode == 1) {
         while (len--) abAppend(&ab,"*",1);
     } else {
         abAppend(&ab,buf,len);
     }
-    /* Show hits if any. */
+    /* Show hints if any. */
     refreshShowHints(&ab,l,plen);
     /* Erase to right */
     snprintf(seq,64,"\x1b[0K");
@@ -767,7 +768,7 @@ void linenoiseEditBackspace(struct linenoiseState *l) {
     }
 }
 
-/* Delete the previosu word, maintaining the cursor at the start of the
+/* Delete the previous word, maintaining the cursor at the start of the
  * current word. */
 void linenoiseEditDeletePrevWord(struct linenoiseState *l) {
     size_t old_pos = l->pos;
@@ -802,7 +803,9 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
     l.buf = buf;
     l.buflen = buflen;
     l.prompt = prompt;
-    l.plen = strlen(prompt);
+    /* If the prompt is a NULL pointer, assume that the prompt has already been printed
+     * and deduce its length from the cursor position. */
+    l.plen = prompt ? strlen(prompt) : getCursorPosition(l.ifd, l.ofd) + 1;
     l.oldpos = l.pos = 0;
     l.len = 0;
     l.cols = getColumns(stdin_fd, stdout_fd);
@@ -817,7 +820,11 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
      * initially is just an empty string. */
     linenoiseHistoryAdd("");
 
-    if (write(l.ofd,prompt,l.plen) == -1) return -1;
+    if (prompt) {
+      if (write(l.ofd,prompt,l.plen) == -1) {
+	return -1;
+      }
+    }
     while(1) {
         char c;
         int nread;
@@ -1064,7 +1071,6 @@ static char *linenoiseNoTTY(void) {
 char *linenoise(const char *prompt) {
     char buf[LINENOISE_MAX_LINE];
     int count;
-
     if (!isatty(STDIN_FILENO)) {
         /* Not a tty: read from file / pipe. In this mode we don't want any
          * limit to the line size, so we call a function to handle that. */
@@ -1082,7 +1088,7 @@ char *linenoise(const char *prompt) {
         }
         return strdup(buf);
     } else {
-        count = linenoiseRaw(buf,LINENOISE_MAX_LINE,prompt);
+      count = linenoiseRaw(buf,LINENOISE_MAX_LINE,prompt);
         if (count == -1) return NULL;
         return strdup(buf);
     }
