@@ -3,7 +3,6 @@
 #include <string.h>
 #include "linenoise.h"
 
-
 void completion(const char *buf, linenoiseCompletions *lc) {
     if (buf[0] == 'h') {
         linenoiseAddCompletion(lc,"hello");
