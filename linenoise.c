@@ -123,6 +123,7 @@ static char *unsupported_term[] = {"dumb","cons25","emacs",NULL};
 static linenoiseCompletionCallback *completionCallback = NULL;
 static linenoiseHintsCallback *hintsCallback = NULL;
 static linenoiseFreeHintsCallback *freeHintsCallback = NULL;
+static char *linenoiseNoTTY(void);
 
 static struct termios orig_termios; /* In order to restore at exit.*/
 static int maskmode = 0; /* Show "***" instead of input. For passwords. */
@@ -848,6 +849,11 @@ int linenoiseEditStart(struct linenoiseState *l, int stdin_fd, int stdout_fd, ch
     l->buf[0] = '\0';
     l->buflen--; /* Make sure there is always space for the nulterm */
 
+    /* If stdin is not a tty, stop here with the initialization. We
+     * will actually just read a line from standard input in blocking
+     * mode later, in linenoiseEditFeed(). */
+    if (!isatty(l->ifd)) return 0;
+
     /* Enter raw mode. */
     if (enableRawMode(l->ifd) == -1) return -1;
 
@@ -859,31 +865,37 @@ int linenoiseEditStart(struct linenoiseState *l, int stdin_fd, int stdout_fd, ch
     return 0;
 }
 
+char *linenoiseEditMore = "If you see this, you are misusing the API: when linenoiseEditFeed() is called, if it returns linenoiseEditMore the user is yet editing the line. See the README file for more information.";
+
 /* This function is part of the multiplexed API of linenoise, see the top
  * comment on linenoiseEditStart() for more information. Call this function
  * each time there is some data to read from the standard input file
  * descriptor. In the case of blocking operations, this function can just be
  * called in a loop, and block.
  *
- * The function returns NULL to signal that line editing is still in progress,
- * that is, the user didn't yet pressed enter / CTRL-D. Otherwise the function
- * returns the pointer to the buffer and populates '*len' with the current
- * buffer length. If '*len' is set to -1, some special condition occurred, and
- * the caller may want to check 'errno':
+ * The function returns linenoiseEditMore to signal that line editing is still
+ * in progress, that is, the user didn't yet pressed enter / CTRL-D. Otherwise
+ * the function returns the pointer to the heap-allocated buffer with the
+ * edited line, that the user should free with linenoiseFree().
+ *
+ * On special conditions, NULL is returned and errno is populated:
  *
  * EAGAIN if the user pressed Ctrl-C
  * ENOENT if the user pressed Ctrl-D
+ *
+ * Some other errno: I/O error.
  */
-char *linenoiseEditFeed(struct linenoiseState *l, int *len) {
+char *linenoiseEditFeed(struct linenoiseState *l) {
+    /* Not a TTY, pass control to line reading without character
+     * count limits. */
+    if (!isatty(l->ifd)) return linenoiseNoTTY();
+
     char c;
     int nread;
     char seq[3];
 
     nread = read(l->ifd,&c,1);
-    if (nread <= 0) {
-        if (len) *len = l->len;
-        return l->buf;
-    }
+    if (nread <= 0) return NULL;
 
     /* Only autocomplete when the callback is set. It returns < 0 when
      * there was an error reading from fd. Otherwise it will return the
@@ -891,12 +903,9 @@ char *linenoiseEditFeed(struct linenoiseState *l, int *len) {
     if (c == 9 && completionCallback != NULL) {
         c = completeLine(l);
         /* Return on errors */
-        if (c < 0) {
-            if (len) *len = -1;
-            return l->buf;
-        }
+        if (c < 0) return NULL;
         /* Read next character when 0 */
-        if (c == 0) return NULL;
+        if (c == 0) return linenoiseEditMore;
     }
 
     switch(c) {
@@ -912,12 +921,10 @@ char *linenoiseEditFeed(struct linenoiseState *l, int *len) {
             refreshLine(l);
             hintsCallback = hc;
         }
-        if (len) *len = l->len;
-        return l->buf;
+        return strdup(l->buf);
     case CTRL_C:     /* ctrl-c */
         errno = EAGAIN;
-        if (len) *len = -1;
-        return l->buf;
+        return NULL;
     case BACKSPACE:   /* backspace */
     case 8:     /* ctrl-h */
         linenoiseEditBackspace(l);
@@ -929,9 +936,8 @@ char *linenoiseEditFeed(struct linenoiseState *l, int *len) {
         } else {
             history_len--;
             free(history[history_len]);
-            if (len) *len = -1;
             errno = ENOENT;
-            return l->buf;
+            return NULL;
         }
         break;
     case CTRL_T:    /* ctrl-t, swaps current character with previous. */
@@ -1011,10 +1017,7 @@ char *linenoiseEditFeed(struct linenoiseState *l, int *len) {
         }
         break;
     default:
-        if (linenoiseEditInsert(l,c)) {
-            if (len) *len = -1;
-            return l->buf;
-        }
+        if (linenoiseEditInsert(l,c)) return NULL;
         break;
     case CTRL_U: /* Ctrl+u, delete the whole line. */
         l->buf[0] = '\0';
@@ -1040,7 +1043,7 @@ char *linenoiseEditFeed(struct linenoiseState *l, int *len) {
         linenoiseEditDeletePrevWord(l);
         break;
     }
-    return NULL;
+    return linenoiseEditMore;
 }
 
 /* This is part of the multiplexed linenoise API. See linenoiseEditStart()
@@ -1048,6 +1051,7 @@ char *linenoiseEditFeed(struct linenoiseState *l, int *len) {
  * returns something different than NULL. At this point the user input
  * is in the buffer, and we can restore the terminal in normal mode. */
 void linenoiseEditStop(struct linenoiseState *l) {
+    if (!isatty(l->ifd)) return;
     disableRawMode(l->ifd);
     printf("\n");
 }
@@ -1056,22 +1060,21 @@ void linenoiseEditStop(struct linenoiseState *l) {
  * In many applications that are not event-drivern, we can just call
  * the blocking linenoise API, wait for the user to complete the editing
  * and return the buffer. */
-static int linenoiseBlockingEdit(struct linenoiseState *l, int stdin_fd, int stdout_fd, char *buf, size_t buflen, const char *prompt)
+static char *linenoiseBlockingEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, const char *prompt)
 {
+    struct linenoiseState l;
+
     /* Editing without a buffer is invalid. */
     if (buflen == 0) {
         errno = EINVAL;
-        return -1;
+        return NULL;
     }
 
-    linenoiseEditStart(l,stdin_fd,stdout_fd,buf,buflen,prompt);
-    int len;
-    while(1) {
-        char *res = linenoiseEditFeed(l,&len);
-        if (res != NULL) break;
-    }
-    linenoiseEditStop(l);
-    return len;
+    linenoiseEditStart(&l,stdin_fd,stdout_fd,buf,buflen,prompt);
+    char *res;
+    while((res = linenoiseEditFeed(&l)) == linenoiseEditMore);
+    linenoiseEditStop(&l);
+    return res;
 }
 
 /* This special mode is used by linenoise in order to print scan codes
@@ -1145,7 +1148,6 @@ static char *linenoiseNoTTY(void) {
  * something even in the most desperate of the conditions. */
 char *linenoise(const char *prompt) {
     char buf[LINENOISE_MAX_LINE];
-    int count;
 
     if (!isatty(STDIN_FILENO)) {
         /* Not a tty: read from file / pipe. In this mode we don't want any
@@ -1164,10 +1166,8 @@ char *linenoise(const char *prompt) {
         }
         return strdup(buf);
     } else {
-        struct linenoiseState l;
-        count = linenoiseBlockingEdit(&l,-1,-1,buf,LINENOISE_MAX_LINE,prompt);
-        if (count == -1) return NULL;
-        return strdup(buf);
+        char *retval = linenoiseBlockingEdit(STDIN_FILENO,STDOUT_FILENO,buf,LINENOISE_MAX_LINE,prompt);
+        return retval;
     }
 }
 
@@ -1176,6 +1176,7 @@ char *linenoise(const char *prompt) {
  * created with. Useful when the main program is using an alternative
  * allocator. */
 void linenoiseFree(void *ptr) {
+    if (ptr == linenoiseEditMore) return; // Protect from API misuse.
     free(ptr);
 }
 

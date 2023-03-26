@@ -69,8 +69,6 @@ int main(int argc, char **argv) {
              * using the select(2) timeout. */
             struct linenoiseState ls;
             char buf[1024];
-            char *async_retval;
-            int async_len = 0;
             linenoiseEditStart(&ls,-1,-1,buf,sizeof(buf),"hello> ");
             while(1) {
 		fd_set readfds;
@@ -87,11 +85,11 @@ int main(int argc, char **argv) {
 		    perror("select()");
                     exit(1);
 		} else if (retval) {
-		    async_retval = linenoiseEditFeed(&ls,&async_len);
+		    line = linenoiseEditFeed(&ls);
                     /* A NULL return means: line editing is continuing.
                      * Otherwise the user hit enter or stopped editing
                      * (CTRL+C/D). */
-                    if (async_retval != NULL) break;
+                    if (line != linenoiseEditMore) break;
 		} else {
 		    // Timeout occurred
                     static int counter = 0;
@@ -101,8 +99,7 @@ int main(int argc, char **argv) {
 		}
             }
             linenoiseEditStop(&ls);
-            if (async_len == -1) exit(0); /* Ctrl+D/C. */
-            line = strdup(async_retval);
+            if (line == NULL) exit(0); /* Ctrl+D/C. */
         }
 
         /* Do something with the string. */
