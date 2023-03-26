@@ -1,13 +1,14 @@
 # Linenoise
 
 A minimal, zero-config, BSD licensed, readline replacement used in Redis,
-MongoDB, and Android.
+MongoDB, Android and many other projects.
 
 * Single and multi line editing mode with the usual key bindings implemented.
 * History handling.
 * Completion.
 * Hints (suggestions at the right of the prompt as you type).
-* About 1,100 lines of BSD license source code.
+* Multiplexing mode, with prompt hiding/restoring for asynchronous output.
+* About ~850 lines (comments and spaces excluded) of BSD license source code.
 * Only uses a subset of VT100 escapes (ANSI.SYS compatible).
 
 ## Can a line editing library be 20k lines of code?
@@ -16,8 +17,8 @@ Line editing with some support for history is a really important feature for com
 
 So what usually happens is either:
 
- * Large programs with configure scripts disabling line editing if readline is not present in the system, or not supporting it at all since readline is GPL licensed and libedit (the BSD clone) is not as known and available as readline is (Real world example of this problem: Tclsh).
- * Smaller programs not using a configure script not supporting line editing at all (A problem we had with Redis-cli for instance).
+ * Large programs with configure scripts disabling line editing if readline is not present in the system, or not supporting it at all since readline is GPL licensed and libedit (the BSD clone) is not as known and available as readline is (real world example of this problem: Tclsh).
+ * Smaller programs not using a configure script not supporting line editing at all (A problem we had with `redis-cli`, for instance).
  
 The result is a pollution of binaries without line editing support.
 
@@ -28,7 +29,9 @@ So I spent more or less two hours doing a reality check resulting in this little
 Apparently almost every terminal you can happen to use today has some kind of support for basic VT100 escape sequences. So I tried to write a lib using just very basic VT100 features. The resulting library appears to work everywhere I tried to use it, and now can work even on ANSI.SYS compatible terminals, since no
 VT220 specific sequences are used anymore.
 
-The library is currently about 1100 lines of code. In order to use it in your project just look at the *example.c* file in the source distribution, it is trivial. Linenoise is BSD code, so you can use both in free software and commercial software.
+The library is currently about 850 lines of code. In order to use it in your project just look at the *example.c* file in the source distribution, it is pretty straightforward. The library supports both a blocking mode and a multiplexing mode, see the API documentation later in this file for more information.
+
+Linenoise is BSD-licensed code, so you can use both in free software and commercial software.
 
 ## Tested with...
 
@@ -57,7 +60,7 @@ Send feedbacks to antirez at gmail
 
 Linenoise is very easy to use, and reading the example shipped with the
 library should get you up to speed ASAP. Here is a list of API calls
-and how to use them.
+and how to use them. Let's start with the simple blocking mode:
 
     char *linenoise(const char *prompt);
 

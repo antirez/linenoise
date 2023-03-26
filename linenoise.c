@@ -346,7 +346,15 @@ static void freeCompletions(linenoiseCompletions *lc) {
  * input.
  *
  * The state of the editing is encapsulated into the pointed linenoiseState
- * structure as described in the structure definition. */
+ * structure as described in the structure definition.
+ *
+ * If the function returns non-zero, the caller should handle the
+ * returned value as a byte read from the standard input, and process
+ * it as usually: this basically means that the function may return a byte
+ * read from the termianl but not processed. Otherwise, if zero is returned,
+ * the input was consumed by the completeLine() function to navigate the
+ * possible completions, and the caller should read for the next characters
+ * from stdin. */
 static int completeLine(struct linenoiseState *ls) {
     linenoiseCompletions lc = { 0, NULL };
     int nread, nwritten;
