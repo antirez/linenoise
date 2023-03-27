@@ -272,15 +272,31 @@ The function returns a `char` pointer: if the user didn't yet press enter
 to provide a line to the program, it will return `linenoiseEditMore`, that
 means we need to call `linenoiseEditFeed()` again when more data is
 available. If the function returns non NULL, then this is a heap allocated
-data (to be freed with `linenoiseFree()`) representing the user input, and
-we can read the next line again with `linenoiseEditFeed(&ls)` calls.
+data (to be freed with `linenoiseFree()`) representing the user input.
 When the function returns NULL, than the user pressed CTRL-C or CTRL-D
 with an empty line, to quit the program, or there was some I/O error.
 
-Finally, before exiting the program, we need to exit raw mode and do other
-clenaup. So we call:
+After each line is received (or if you want to quit the program, and exit raw mode), the following function needs to be called:
 
     linenoiseEditStop(&ls);
+
+To start reading the next line, a new linenoiseEditStart() must
+be called, in order to reset the state, and so forth, so a typical event
+handler called when the standard input is readable, will work similarly
+to the example below:
+
+``` c
+void stdinHasSomeData(void) {
+    char *line = linenoiseEditFeed(&LineNoiseState);
+    if (line == linenoiseEditMore) return;
+    linenoiseEditStop(&LineNoiseState);
+    if (line == NULL) exit(0);
+
+    printf("line: %s\n", line);
+    linenoiseFree(line);
+    linenoiseEditStart(&LineNoiseState,-1,-1,LineNoiseBuffer,sizeof(LineNoiseBuffer),"serial> ");
+}
+```
 
 Now that we have a way to avoid blocking in the user input, we can use
 two calls to hide/show the edited line, so that it is possible to also
@@ -291,7 +307,7 @@ screen:
     printf("some data...\n");
     linenoiseShow(&ls);
 
-To show all this, the linenoise example C file implements a multiplexing
+To the API calls, the linenoise example C file implements a multiplexing
 example using select(2) and the asynchronous API:
 
 ```c
