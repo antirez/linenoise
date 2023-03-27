@@ -51,6 +51,9 @@ extern char *linenoiseEditMore;
  * We pass this state to functions implementing specific editing
  * functionalities. */
 struct linenoiseState {
+    int in_completion;  /* The user pressed TAB and we are now in completion
+                         * mode, so input is handled by completeLine(). */
+    size_t completion_idx; /* Index of next completion to propose. */
     int ifd;            /* Terminal stdin file descriptor. */
     int ofd;            /* Terminal stdout file descriptor. */
     char *buf;          /* Edited line buffer. */
