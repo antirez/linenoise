@@ -64,7 +64,7 @@ struct linenoiseState {
     size_t oldpos;      /* Previous refresh cursor position. */
     size_t len;         /* Current edited line length. */
     size_t cols;        /* Number of columns in terminal. */
-    size_t maxrows;     /* Maximum num of rows used so far (multiline mode) */
+    size_t oldrows;     /* Rows used by last refrehsed line (multiline mode) */
     int history_index;  /* The history index we are currently editing. */
 };
 
