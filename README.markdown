@@ -244,6 +244,87 @@ user typed. You can do this by calling the following function:
 
     void linenoiseClearScreen(void);
 
+## Asyncrhronous API
+
+Sometimes you want to read from the keyboard but also from sockets or other
+external events, and at the same time there could be input to display to the
+user *while* the user is typing something. Let's call this the "IRC problem",
+since if you want to write an IRC client with linenoise, without using
+some fully featured libcurses approach, you will surely end having such an
+issue.
+
+Fortunately now a multiplexing friendly API exists, and it is just what the
+blocking calls internally use. To start, we need to initialize a linenoise
+context like this:
+
+    struct linenoiseState ls;
+    char buf[1024];
+    linenoiseEditStart(&ls,-1,-1,buf,sizeof(buf),"some prompt> ");
+
+The two -1 and -1 arguments are the stdin/out descriptors. If they are
+set to -1, linenoise will just use the default stdin/out file descriptors.
+Now as soon as we have data from stdin (and we know it via select(2) or
+some other way), we can ask linenoise to read the next character with:
+
+    linenoiseEditFeed(&ls);
+
+The function returns a `char` pointer: if the user didn't yet press enter
+to provide a line to the program, it will return `linenoiseEditMore`, that
+means we need to call `linenoiseEditFeed()` again when more data is
+available. If the function returns non NULL, then this is a heap allocated
+data (to be freed with `linenoiseFree()`) representing the user input, and
+we can read the next line again with `linenoiseEditFeed(&ls)` calls.
+When the function returns NULL, than the user pressed CTRL-C or CTRL-D
+with an empty line, to quit the program, or there was some I/O error.
+
+Finally, before exiting the program, we need to exit raw mode and do other
+clenaup. So we call:
+
+    linenoiseEditStop(&ls);
+
+Now that we have a way to avoid blocking in the user input, we can use
+two calls to hide/show the edited line, so that it is possible to also
+show some input that we received (from socekts, bluetooth, whatever) on
+screen:
+
+    linenoiseHide(&ls);
+    printf("some data...\n");
+    linenoiseShow(&ls);
+
+To show all this, the linenoise example C file implements a multiplexing
+example using select(2) and the asynchronous API:
+
+```c
+    struct linenoiseState ls;
+    char buf[1024];
+    linenoiseEditStart(&ls,-1,-1,buf,sizeof(buf),"hello> ");
+
+    while(1) {
+        // Select(2) setup code removed...
+        retval = select(ls.ifd+1, &readfds, NULL, NULL, &tv);
+        if (retval == -1) {
+            perror("select()");
+            exit(1);
+        } else if (retval) {
+            line = linenoiseEditFeed(&ls);
+            /* A NULL return means: line editing is continuing.
+             * Otherwise the user hit enter or stopped editing
+             * (CTRL+C/D). */
+            if (line != linenoiseEditMore) break;
+        } else {
+            // Timeout occurred
+            static int counter = 0;
+            linenoiseHide(&ls);
+            printf("Async output %d.\n", counter++);
+            linenoiseShow(&ls);
+        }
+    }
+    linenoiseEditStop(&ls);
+    if (line == NULL) exit(0); /* Ctrl+D/C. */
+```
+
+You can test the example by running the example program with the `--async` option.
+
 ## Related projects
 
 * [Linenoise NG](https://github.com/arangodb/linenoise-ng) is a fork of Linenoise that aims to add more advanced features like UTF-8 support, Windows support and other features. Uses C++ instead of C as development language.
