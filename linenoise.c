@@ -124,6 +124,8 @@ static linenoiseCompletionCallback *completionCallback = NULL;
 static linenoiseHintsCallback *hintsCallback = NULL;
 static linenoiseFreeHintsCallback *freeHintsCallback = NULL;
 static char *linenoiseNoTTY(void);
+static void refreshLineWithCompletion(struct linenoiseState *ls, linenoiseCompletions *lc, int flags);
+static void refreshLineWithFlags(struct linenoiseState *l, int flags);
 
 static struct termios orig_termios; /* In order to restore at exit.*/
 static int maskmode = 0; /* Show "***" instead of input. For passwords. */
@@ -341,6 +343,37 @@ static void freeCompletions(linenoiseCompletions *lc) {
         free(lc->cvec);
 }
 
+/* Called by completeLine() and linenoiseShow() to render the current
+ * edited line with the proposed completion. If the current completion table
+ * is already available, it is passed as second argument, otherwise the
+ * function will use the callback to obtain it.
+ *
+ * Flags are the same as refreshLine*(), that is REFRESH_* macros. */
+static void refreshLineWithCompletion(struct linenoiseState *ls, linenoiseCompletions *lc, int flags) {
+    /* Obtain the table of completions if the caller didn't provide one. */
+    linenoiseCompletions ctable = { 0, NULL };
+    if (lc == NULL) {
+        completionCallback(ls->buf,&ctable);
+        lc = &ctable;
+    }
+
+    /* Show the edited line with completion if possible, or just refresh. */
+    if (ls->completion_idx < lc->len) {
+        struct linenoiseState saved = *ls;
+        ls->len = ls->pos = strlen(lc->cvec[ls->completion_idx]);
+        ls->buf = lc->cvec[ls->completion_idx];
+        refreshLineWithFlags(ls,flags);
+        ls->len = saved.len;
+        ls->pos = saved.pos;
+        ls->buf = saved.buf;
+    } else {
+        refreshLineWithFlags(ls,flags);
+    }
+
+    /* Free the completions table if needed. */
+    if (lc != &ctable) freeCompletions(&ctable);
+}
+
 /* This is an helper function for linenoiseEdit*() and is called when the
  * user types the <tab> key in order to complete the string currently in the
  * input.
@@ -388,7 +421,6 @@ static int completeLine(struct linenoiseState *ls, int keypressed) {
                     nwritten = snprintf(ls->buf,ls->buflen,"%s",
                         lc.cvec[ls->completion_idx]);
                     ls->len = ls->pos = nwritten;
-                    c = 0;
                 }
                 ls->in_completion = 0;
                 break;
@@ -396,14 +428,7 @@ static int completeLine(struct linenoiseState *ls, int keypressed) {
 
         /* Show completion or original buffer */
         if (ls->in_completion && ls->completion_idx < lc.len) {
-            struct linenoiseState saved = *ls;
-
-            ls->len = ls->pos = strlen(lc.cvec[ls->completion_idx]);
-            ls->buf = lc.cvec[ls->completion_idx];
-            refreshLine(ls);
-            ls->len = saved.len;
-            ls->pos = saved.pos;
-            ls->buf = saved.buf;
+            refreshLineWithCompletion(ls,&lc,REFRESH_ALL);
         } else {
             refreshLine(ls);
         }
@@ -665,11 +690,16 @@ static void refreshMultiLine(struct linenoiseState *l, int flags) {
 
 /* Calls the two low level functions refreshSingleLine() or
  * refreshMultiLine() according to the selected mode. */
-static void refreshLine(struct linenoiseState *l) {
+static void refreshLineWithFlags(struct linenoiseState *l, int flags) {
     if (mlmode)
-        refreshMultiLine(l,REFRESH_ALL);
+        refreshMultiLine(l,flags);
     else
-        refreshSingleLine(l,REFRESH_ALL);
+        refreshSingleLine(l,flags);
+}
+
+/* Utility function to avoid specifying REFRESH_ALL all the times. */
+static void refreshLine(struct linenoiseState *l) {
+    refreshLineWithFlags(l,REFRESH_ALL);
 }
 
 /* Hide the current line, when using the multiplexing API. */
@@ -682,10 +712,11 @@ void linenoiseHide(struct linenoiseState *l) {
 
 /* Show the current line, when using the multiplexing API. */
 void linenoiseShow(struct linenoiseState *l) {
-    if (mlmode)
-        refreshMultiLine(l,REFRESH_WRITE);
-    else
-        refreshSingleLine(l,REFRESH_WRITE);
+    if (l->in_completion) {
+        refreshLineWithCompletion(l,NULL,REFRESH_WRITE);
+    } else {
+        refreshLineWithFlags(l,REFRESH_WRITE);
+    }
 }
 
 /* Insert the character 'c' at cursor current position.
