@@ -92,6 +92,7 @@ void linenoiseSetCompletionCallback(linenoiseCompletionCallback *);
 void linenoiseSetHintsCallback(linenoiseHintsCallback *);
 void linenoiseSetFreeHintsCallback(linenoiseFreeHintsCallback *);
 void linenoiseAddCompletion(linenoiseCompletions *, const char *);
+void linenoiseAddHistoryCompletions(const char*, linenoiseCompletions *);
 
 /* History API. */
 int linenoiseHistoryAdd(const char *line);
