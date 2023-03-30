@@ -1,0 +1,148 @@
+.Dd $Mdocdate$
+.Dt linenoise 3
+.Os
+
+.Sh NAME
+.Nm linenoise
+.Nd readline replacement
+
+.Sh SYNOPSIS
+.In linenoise.h
+Link with
+.Ar -llinenoise
+
+.Ft char *
+.Fn linenoise "const char *prompt"
+.Ft void
+.Fn linenoiseFree "void *ptr"
+.Ft void
+.Fn linenoiseSetMultiLine "int ml"
+
+.Ft int
+.Fn linenoiseHistoryAdd "const char *line"
+.Ft int
+.Fn linenoiseHistorySetMaxLen "int len"
+.Ft int
+.Fn linenoiseHistorySave "const char *filename"
+.Ft int
+.Fn linenoiseHistoryLoad "const char *filename"
+
+.Ft void
+.Fn linenoiseSetCompletionCallback "linenoiseCompletionCallback *"
+.Ft void
+.Fn linenoiseAddCompletion "linenoiseCompletions *" "const char *"
+.Ft void
+.Fn linenoiseSetHintsCallback "linenoiseHintsCallback *"
+.Ft void
+.Fn linenoiseSetFreeHintsCallback "linenoiseFreeHintsCallback *"
+
+.Ft void
+.Fn linenoiseClearScreen "void"
+.Ft void
+.Fn linenoisePrintKeyCodes "void"
+
+.Sh DESCRIPTION
+.Fn linenoise
+shows the specified prompt to the user and takes input with line editing and
+history capabilities.
+It returns a buffer with the users input, or NULL on eof or out of memory.
+The buffer must be freed.
+
+.Fn linenoiseFree
+If your program uses a different dynamic allocation library, you may also use
+.Fn linenoiseFree
+to make sure the line is freed with the same allocator it was created.
+
+.Fn linenoiseSetMultiLine
+set or unset multiline editing, where multiple screens rows are used.
+Enable by passing `1` and disable with `0`.
+When disabled the text will scroll towards left as the user types more.
+
+.Fn linenoiseHistoryAdd
+adds a new element to the top of the history.
+It will be the first the user sees when using the up arrow.
+
+.Fn linenoiseHistorySetMaxLen
+sets a length for the history.
+Default is zero, meaning history is disabled.
+
+.Fn linenoiseHistorySave
+saves the history into a file, returning -1 on error and 0 on success.
+
+.Fn linenoiseHistoryLoad
+loads a history file, returning -1 on error and 0 on success.
+
+.Fn linenoiseSetCompletionCallback
+sets the callback function to be used when the user presses the TAB key.
+The callback is implemented like
+.Ft void
+.Fn completion "const char *buf" "linenoiseCompletions *lc"
+where buf is the users input and lc is used for adding completions.
+
+.Fn linenoiseAddCompletion
+may be used in the completion callback to add completions.
+It can be called several times to add to the list of completions
+
+.Fn linenoiseSetHintsCallback
+specifies a callback function that can be used for hints.
+Hints try to guess usefull completions to what the user is typing.
+the callback is implemented like
+.Ft char
+.Fn *hints "const char *buf" "int *color" "int *bold"
+where buf is the users input, color and bold specifies aesthetics.
+
+.Fn linenoiseSetFreeHintsCallback
+sets a deallocater to free the returned hint if it was dynamically allocated.
+
+.Fn linenoiseClearScreen
+clears the screen.
+
+.Fn linenoisePrintKeyCodes
+is used in debugging mode to print key codes.
+
+.Ss Input length
+When a tty is detected (user typing into terminal), maximum editable
+line length is `LINENOISE_MAX_LINE`,
+otherwise (pipes or redirection) there are no limits.
+
+.Ss xterm color terminal codes
+.Bd -literal
+    red = 31
+    green = 32
+    yellow = 33
+    blue = 34
+    magenta = 35
+    cyan = 36
+    white = 37;
+.Ed
+
+.Sh EXAMPLES
+.Ss Canonical loop in program using Linenoise
+.Bd -literal
+    while((line = linenoise("hello> ")) != NULL) {
+        printf("You wrote: %s\n", line);
+        linenoiseFree(line); /* Or free(line) for libc malloc. */
+    }
+.Ed
+
+.Ss Completion callback function
+.Bd -literal
+    void completion(const char *buf, linenoiseCompletions *lc) {
+        if (buf[0] == 'h') {
+            linenoiseAddCompletion(lc,"hello");
+            linenoiseAddCompletion(lc,"hello there");
+        }
+    }
+.Ed
+
+.Ss Hint callback function
+.Bd -literal
+    char *hints(const char *buf, int *color, int *bold) {
+        if (!strcasecmp(buf,"git remote add")) {
+            *color = 35;
+            *bold = 0;
+            return " <name> <url>";
+        }
+        return NULL;
+    }
+.Ed
