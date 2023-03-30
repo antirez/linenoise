@@ -15,7 +15,12 @@ char *hints(const char *buf, int *color, int *bold) {
     if (!strcasecmp(buf,"hello")) {
         *color = 35;
         *bold = 0;
-        return " World";
+	/* The hints callback returns non-const, because it is possible to
+	 * dynamically allocate the hints we return, so long as we provide a
+	 * cleanup callback to linenoise that it can call later to deallocate
+	 * them. Here, we do not provide such a cleanup callback and we return a
+	 * static const - that's why we can cast this const away. */
+        return (char *)" World";
     }
     return NULL;
 }
