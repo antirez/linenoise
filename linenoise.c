@@ -1256,6 +1256,11 @@ int linenoiseHistoryAdd(const char *line) {
         history = malloc(sizeof(char*)*history_max_len);
         if (history == NULL) return 0;
         memset(history,0,(sizeof(char*)*history_max_len));
+
+	if (!atexit_registered) {
+		atexit(linenoiseAtExit);
+		atexit_registered = 1;
+	    }
     }
 
     /* Don't add duplicated lines. */
