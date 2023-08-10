@@ -756,12 +756,30 @@ void linenoiseEditMoveLeft(struct linenoiseState *l) {
     }
 }
 
+/* Move cursor to the beginning of the previous word. */
+void linenoiseEditMoveLeftWord(struct linenoiseState *l) {
+    while (l->pos > 0 && l->buf[l->pos-1] == ' ')
+        l->pos--;
+    while (l->pos > 0 && l->buf[l->pos-1] != ' ')
+        l->pos--;
+    refreshLine(l);
+}
+
 /* Move cursor on the right. */
 void linenoiseEditMoveRight(struct linenoiseState *l) {
     if (l->pos != l->len) {
         l->pos++;
         refreshLine(l);
     }
+}
+
+/* Move cursor to the end of the next word. */
+void linenoiseEditMoveRightWord(struct linenoiseState *l) {
+    while (l->pos < l->len && l->buf[l->pos] == ' ')
+        l->pos++;
+    while (l->pos < l->len && l->buf[l->pos] != ' ')
+        l->pos++;
+    refreshLine(l);
 }
 
 /* Move cursor to the start of the line. */
@@ -1016,6 +1034,15 @@ char *linenoiseEditFeed(struct linenoiseState *l) {
 
             if (seq[1] == '3' && seq[2] == '~') {
                 linenoiseEditDelete(l);
+            } else if (seq[1] == '1' && seq[2] == ';' && seq[3] == '5') {
+                switch(seq[4]) {
+                case 'C': /* Ctrl+Right */
+                    linenoiseEditMoveRightWord(l);
+                    break;
+                case 'D': /* Ctrl+Left */
+                    linenoiseEditMoveLeftWord(l);
+                    break;
+                }
             } else {
                 switch(seq[1]) {
                 case 'A': /* Up */
