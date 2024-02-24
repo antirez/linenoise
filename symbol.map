@@ -1,0 +1,19 @@
+LINENOISE_0.0 {
+global:
+  linenoiseSetCompletionCallback;
+  linenoiseSetHintsCallback;
+  linenoiseSetFreeHintsCallback;
+  linenoiseAddCompletion;
+  linenoise;
+  linenoiseFree;
+  linenoiseHistoryAdd;
+  linenoiseHistorySetMaxLen;
+  linenoiseHistorySave;
+  linenoiseHistoryLoad;
+  linenoiseClearScreen;
+  linenoiseSetMultiLine;
+  linenoisePrintKeyCodes;
+
+local:
+  *;
+};
