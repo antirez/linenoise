@@ -435,7 +435,7 @@ static int completeLine(struct linenoiseState *ls, int keypressed) {
     }
 
     freeCompletions(&lc);
-    return c; /* Return last read character */
+    return (unsigned char)c; /* Return last read character */
 }
 
 /* Register a callback function to be called for tab-completion. */
@@ -932,6 +932,7 @@ char *linenoiseEditFeed(struct linenoiseState *l) {
 
     char c;
     int nread;
+    int ret;
     char seq[3];
 
     nread = read(l->ifd,&c,1);
@@ -941,11 +942,12 @@ char *linenoiseEditFeed(struct linenoiseState *l) {
      * there was an error reading from fd. Otherwise it will return the
      * character that should be handled next. */
     if ((l->in_completion || c == 9) && completionCallback != NULL) {
-        c = completeLine(l,c);
+        ret = completeLine(l,(unsigned char)c);
         /* Return on errors */
-        if (c < 0) return NULL;
+        if (ret < 0) return NULL;
         /* Read next character when 0 */
-        if (c == 0) return linenoiseEditMore;
+        if (ret == 0) return linenoiseEditMore;
+        c = (char)ret;
     }
 
     switch(c) {
