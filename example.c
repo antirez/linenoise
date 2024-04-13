@@ -1,8 +1,22 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/select.h>
+
+#if defined(_WIN64) || defined(_WIN32)
+    #define USE_WIN_CONSOLE
+#endif
+
+#ifdef USE_WIN_CONSOLE
+    #include <winsock.h>
+    #define WIN32_LEAN_AND_MEAN
+    #include <windows.h>
+    #include <fcntl.h>
+#else
+    #include <sys/select.h>
+#endif  //USE_WIN_CONSOLE
+
 #include "linenoise.h"
+
 
 void completion(const char *buf, linenoiseCompletions *lc) {
     if (buf[0] == 'h') {
