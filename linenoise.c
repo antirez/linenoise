@@ -119,7 +119,7 @@
 
 #define LINENOISE_DEFAULT_HISTORY_MAX_LEN 100
 #define LINENOISE_MAX_LINE 4096
-static char *unsupported_term[] = {"dumb","cons25","emacs",NULL};
+static const char *unsupported_term[] = {"dumb","cons25","emacs",NULL};
 static linenoiseCompletionCallback *completionCallback = NULL;
 static linenoiseHintsCallback *hintsCallback = NULL;
 static linenoiseFreeHintsCallback *freeHintsCallback = NULL;
@@ -905,7 +905,7 @@ int linenoiseEditStart(struct linenoiseState *l, int stdin_fd, int stdout_fd, ch
     return 0;
 }
 
-char *linenoiseEditMore = "If you see this, you are misusing the API: when linenoiseEditFeed() is called, if it returns linenoiseEditMore the user is yet editing the line. See the README file for more information.";
+const char *linenoiseEditMore = "If you see this, you are misusing the API: when linenoiseEditFeed() is called, if it returns linenoiseEditMore the user is yet editing the line. See the README file for more information.";
 
 /* This function is part of the multiplexed API of linenoise, see the top
  * comment on linenoiseEditStart() for more information. Call this function
@@ -933,6 +933,8 @@ char *linenoiseEditFeed(struct linenoiseState *l) {
     char c;
     int nread;
     char seq[3];
+    char *local_linenoiseEditMore = (char *)malloc((strlen(linenoiseEditMore) + 1) * sizeof(char));
+    strcpy(local_linenoiseEditMore, linenoiseEditMore);
 
     nread = read(l->ifd,&c,1);
     if (nread <= 0) return NULL;
@@ -945,7 +947,7 @@ char *linenoiseEditFeed(struct linenoiseState *l) {
         /* Return on errors */
         if (c < 0) return NULL;
         /* Read next character when 0 */
-        if (c == 0) return linenoiseEditMore;
+        if (c == 0) return local_linenoiseEditMore;
     }
 
     switch(c) {
@@ -1083,7 +1085,7 @@ char *linenoiseEditFeed(struct linenoiseState *l) {
         linenoiseEditDeletePrevWord(l);
         break;
     }
-    return linenoiseEditMore;
+    return local_linenoiseEditMore;
 }
 
 /* This is part of the multiplexed linenoise API. See linenoiseEditStart()
@@ -1216,7 +1218,6 @@ char *linenoise(const char *prompt) {
  * created with. Useful when the main program is using an alternative
  * allocator. */
 void linenoiseFree(void *ptr) {
-    if (ptr == linenoiseEditMore) return; // Protect from API misuse.
     free(ptr);
 }
 

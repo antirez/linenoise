@@ -45,7 +45,7 @@ extern "C" {
 
 #include <stddef.h> /* For size_t. */
 
-extern char *linenoiseEditMore;
+extern const char *linenoiseEditMore;
 
 /* The linenoiseState structure represents the state during line editing.
  * We pass this state to functions implementing specific editing
