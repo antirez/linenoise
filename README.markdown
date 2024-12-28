@@ -244,7 +244,7 @@ user typed. You can do this by calling the following function:
 
     void linenoiseClearScreen(void);
 
-## Asyncrhronous API
+## Asynchronous API
 
 Sometimes you want to read from the keyboard but also from sockets or other
 external events, and at the same time there could be input to display to the
