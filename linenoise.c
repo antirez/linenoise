@@ -319,8 +319,8 @@ failed:
 }
 
 /* Clear the screen. Used to handle ctrl+l */
-void linenoiseClearScreen(void) {
-    if (write(STDOUT_FILENO,"\x1b[H\x1b[2J",7) <= 0) {
+void linenoiseClearScreen(struct linenoiseState *l) {
+    if (write(l->ofd,"\x1b[H\x1b[2J",7) <= 0) {
         /* nothing to do, just to avoid warning. */
     }
 }
@@ -1076,7 +1076,7 @@ char *linenoiseEditFeed(struct linenoiseState *l) {
         linenoiseEditMoveEnd(l);
         break;
     case CTRL_L: /* ctrl+l, clear screen */
-        linenoiseClearScreen();
+        linenoiseClearScreen(l);
         refreshLine(l);
         break;
     case CTRL_W: /* ctrl+w, delete previous word */
