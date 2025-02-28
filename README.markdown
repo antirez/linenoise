@@ -1,5 +1,7 @@
 # Linenoise UTF-8
 
+NOTE: This repo is deprecated and will be removed when Unicode 17.0.0 is out. Please use https://github.com/ericcurtin/linenoise.cpp instead which includes the same functionality implemented in a better way.
+
 A minimal, zero-config, BSD licensed, readline replacement used in Redis,
 MongoDB, Android and many other projects.
 
