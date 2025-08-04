@@ -1189,7 +1189,7 @@ static char *linenoiseNoTTY(void) {
 char *linenoise(const char *prompt) {
     char buf[LINENOISE_MAX_LINE];
 
-    if (!isatty(STDIN_FILENO)) {
+    if (!isatty(STDIN_FILENO) && (NULL == getenv("LSB_JOBID") || NULL == getenv("LSB_INTERACTIVE"))) {
         /* Not a tty: read from file / pipe. In this mode we don't want any
          * limit to the line size, so we call a function to handle that. */
         return linenoiseNoTTY();
