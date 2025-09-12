@@ -100,7 +100,7 @@ int linenoiseHistorySave(const char *filename);
 int linenoiseHistoryLoad(const char *filename);
 
 /* Other utilities. */
-void linenoiseClearScreen(void);
+void linenoiseClearScreen(struct linenoiseState *l);
 void linenoiseSetMultiLine(int ml);
 void linenoisePrintKeyCodes(void);
 void linenoiseMaskModeEnable(void);
