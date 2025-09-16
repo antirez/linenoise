@@ -345,3 +345,5 @@ You can test the example by running the example program with the `--async` optio
 
 * [Linenoise NG](https://github.com/arangodb/linenoise-ng) is a fork of Linenoise that aims to add more advanced features like UTF-8 support, Windows support and other features. Uses C++ instead of C as development language.
 * [Linenoise-swift](https://github.com/andybest/linenoise-swift) is a reimplementation of Linenoise written in Swift.
+* [linenoise.cpp](https://github.com/ericcurtin/linenoise.cpp) is a fork of Linenoise that is written in C++17.
+
