@@ -150,7 +150,7 @@ You can enable and disable mask mode using the following two functions:
 ## Completion
 
 Linenoise supports completion, which is the ability to complete the user
-input when she or he presses the `<TAB>` key.
+input when they press the `<TAB>` key.
 
 In order to use completion, you need to register a completion callback, which
 is called every time the user presses `<TAB>`. Your callback will return a
