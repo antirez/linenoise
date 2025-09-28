@@ -764,6 +764,44 @@ void linenoiseEditMoveRight(struct linenoiseState *l) {
     }
 }
 
+/* Move cursor one word to the left. */
+void linenoiseEditMoveWordLeft(struct linenoiseState *l) {
+    if (l->pos == 0) return;
+
+    size_t pos = l->pos;
+
+    while (pos > 0 && isspace((unsigned char)l->buf[pos-1])) {
+        pos--;
+    }
+
+    while (pos > 0 && !isspace((unsigned char)l->buf[pos-1])) {
+        pos--;
+    }
+
+    l->pos = pos;
+    refreshLine(l);
+}
+
+/* Move cursor one word to the right. */
+void linenoiseEditMoveWordRight(struct linenoiseState *l) {
+    if (l->pos >= l->len) return;
+
+    size_t pos = l->pos;
+
+    /* Step 1: skip non-space characters (current word) */
+    while (pos < l->len && !isspace((unsigned char)l->buf[pos])) {
+        pos++;
+    }
+
+    /* Step 2: skip spaces */
+    while (pos < l->len && isspace((unsigned char)l->buf[pos])) {
+        pos++;
+    }
+
+    l->pos = pos;
+    refreshLine(l);
+}
+
 /* Move cursor to the start of the line. */
 void linenoiseEditMoveHome(struct linenoiseState *l) {
     if (l->pos != 0) {
@@ -932,7 +970,7 @@ char *linenoiseEditFeed(struct linenoiseState *l) {
 
     char c;
     int nread;
-    char seq[3];
+    char seq[5];
 
     nread = read(l->ifd,&c,1);
     if (nread <= 0) return NULL;
@@ -1013,13 +1051,25 @@ char *linenoiseEditFeed(struct linenoiseState *l) {
             if (seq[1] >= '0' && seq[1] <= '9') {
                 /* Extended escape, read additional byte. */
                 if (read(l->ifd,seq+2,1) == -1) break;
+                if (read(l->ifd,seq+3,1) == -1) break;
+                if (read(l->ifd,seq+4,1) == -1) break;
+
                 if (seq[2] == '~') {
                     switch(seq[1]) {
                     case '3': /* Delete key. */
                         linenoiseEditDelete(l);
                         break;
                     }
-                }
+                } else {
+                    switch (seq[4]) {
+                        case 'C': /* Ctrl+Right */
+                            linenoiseEditMoveWordRight(l);
+                            break;
+                        case 'D': /* Ctrl+Left */
+                            linenoiseEditMoveWordLeft(l);
+                            break;
+                    }
+                }            
             } else {
                 switch(seq[1]) {
                 case 'A': /* Up */
