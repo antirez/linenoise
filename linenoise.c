@@ -943,7 +943,7 @@ char *linenoiseEditFeed(struct linenoiseState *l) {
     if ((l->in_completion || c == 9) && completionCallback != NULL) {
         c = completeLine(l,c);
         /* Return on errors */
-        if (c < 0) return NULL;
+        if ((signed char)c < 0) return NULL;
         /* Read next character when 0 */
         if (c == 0) return linenoiseEditMore;
     }
