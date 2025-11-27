@@ -935,7 +935,11 @@ char *linenoiseEditFeed(struct linenoiseState *l) {
     char seq[3];
 
     nread = read(l->ifd,&c,1);
-    if (nread <= 0) return NULL;
+    if (nread < 0) {
+        return (errno == EAGAIN || errno == EWOULDBLOCK) ? linenoiseEditMore : NULL;
+    } else if (nread == 0) {
+        return NULL;
+    }
 
     /* Only autocomplete when the callback is set. It returns < 0 when
      * there was an error reading from fd. Otherwise it will return the
