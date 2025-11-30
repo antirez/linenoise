@@ -45,6 +45,7 @@ extern "C" {
 
 #include <stddef.h> /* For size_t. */
 
+extern int linenoiseWasInterrupted; /* nonzero if last keystroke was ctrl-c */
 extern char *linenoiseEditMore;
 
 /* The linenoiseState structure represents the state during line editing.
