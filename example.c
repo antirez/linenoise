@@ -4,10 +4,22 @@
 #include <sys/select.h>
 #include "linenoise.h"
 
+#define UTF8
+
+#ifdef UTF8
+#include "encodings/utf8.h"
+#endif
+
 void completion(const char *buf, linenoiseCompletions *lc) {
     if (buf[0] == 'h') {
+#ifdef UTF8
+        linenoiseAddCompletion(lc,"hello こんにちは");
+        linenoiseAddCompletion(lc,"hello こんにちは there");
+        linenoiseAddCompletion(lc,"hello こんにちは 👨‍💻");
+#else
         linenoiseAddCompletion(lc,"hello");
         linenoiseAddCompletion(lc,"hello there");
+#endif
     }
 }
 
@@ -16,6 +28,11 @@ char *hints(const char *buf, int *color, int *bold) {
         *color = 35;
         *bold = 0;
         return " World";
+    }
+    if (!strcasecmp(buf,"こんにちは")) {
+        *color = 35;
+        *bold = 0;
+        return " 世界";
     }
     return NULL;
 }
@@ -43,6 +60,13 @@ int main(int argc, char **argv) {
         }
     }
 
+#ifdef UTF8
+    linenoiseSetEncodingFunctions(
+        linenoiseUtf8PrevCharLen,
+        linenoiseUtf8NextCharLen,
+        linenoiseUtf8ReadCode);
+#endif
+
     /* Set the completion callback. This will be called every time the
      * user uses the <tab> key. */
     linenoiseSetCompletionCallback(completion);
@@ -61,7 +85,11 @@ int main(int argc, char **argv) {
 
     while(1) {
         if (!async) {
-            line = linenoise("hello> ");
+#ifdef UTF8
+            line = linenoise("\033[32mこんにちは\x1b[0m> ");
+#else
+            line = linenoise("\033[32mhello\x1b[0m> ");
+#endif
             if (line == NULL) break;
         } else {
             /* Asynchronous mode using the multiplexing API: wait for
