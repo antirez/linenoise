@@ -220,7 +220,7 @@ static int isUnsupportedTerm(void) {
 static int enableRawMode(int fd) {
     struct termios raw;
 
-    if (!isatty(STDIN_FILENO)) goto fatal;
+    if (!isatty(fd)) goto fatal;
     if (!atexit_registered) {
         atexit(linenoiseAtExit);
         atexit_registered = 1;
@@ -288,7 +288,7 @@ static int getCursorPosition(int ifd, int ofd) {
 static int getColumns(int ifd, int ofd) {
     struct winsize ws;
 
-    if (ioctl(1, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0) {
+    if (ioctl(ofd, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0) {
         /* ioctl() failed. Try to query the terminal itself. */
         int start, cols;
 
@@ -319,8 +319,8 @@ failed:
 }
 
 /* Clear the screen. Used to handle ctrl+l */
-void linenoiseClearScreen(void) {
-    if (write(STDOUT_FILENO,"\x1b[H\x1b[2J",7) <= 0) {
+void linenoiseClearScreen(struct linenoiseState *l) {
+    if (write(l->ofd,"\x1b[H\x1b[2J",7) <= 0) {
         /* nothing to do, just to avoid warning. */
     }
 }
@@ -1080,7 +1080,7 @@ char *linenoiseEditFeed(struct linenoiseState *l) {
         linenoiseEditMoveEnd(l);
         break;
     case CTRL_L: /* ctrl+l, clear screen */
-        linenoiseClearScreen();
+        linenoiseClearScreen(l);
         refreshLine(l);
         break;
     case CTRL_W: /* ctrl+w, delete previous word */
@@ -1097,7 +1097,9 @@ char *linenoiseEditFeed(struct linenoiseState *l) {
 void linenoiseEditStop(struct linenoiseState *l) {
     if (!isatty(l->ifd)) return;
     disableRawMode(l->ifd);
-    printf("\n");
+    if(write(l->ofd, "\n", 1) <= 0) {
+        /* nothing to do, just to avoid warning. */
+    }
 }
 
 /* This just implements a blocking loop for the multiplexed API.
