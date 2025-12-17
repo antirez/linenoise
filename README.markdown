@@ -8,30 +8,30 @@ MongoDB, Android and many other projects.
 * Completion.
 * Hints (suggestions at the right of the prompt as you type).
 * Multiplexing mode, with prompt hiding/restoring for asynchronous output.
-* About ~850 lines (comments and spaces excluded) of BSD license source code.
+* About ~850 lines (comments and spaces excluded) of BSD licensed source code.
 * Only uses a subset of VT100 escapes (ANSI.SYS compatible).
 
 ## Can a line editing library be 20k lines of code?
 
-Line editing with some support for history is a really important feature for command line utilities. Instead of retyping almost the same stuff again and again it's just much better to hit the up arrow and edit on syntax errors, or in order to try a slightly different command. But apparently code dealing with terminals is some sort of Black Magic: readline is 30k lines of code, libedit 20k. Is it reasonable to link small utilities to huge libraries just to get a minimal support for line editing?
+Line editing with some support for history is a really important feature for command line utilities. Instead of retyping almost the same stuff again and again, it's just much better to hit the up arrow and edit on syntax errors, or in order to try a slightly different command. But apparently code dealing with terminals is some sort of Black Magic: readline is 30k lines of code, libedit 20k. Is it reasonable to link small utilities to huge libraries just to get a minimal support for line editing?
 
 So what usually happens is either:
 
- * Large programs with configure scripts disabling line editing if readline is not present in the system, or not supporting it at all since readline is GPL licensed and libedit (the BSD clone) is not as known and available as readline is (real world example of this problem: Tclsh).
- * Smaller programs not using a configure script not supporting line editing at all (A problem we had with `redis-cli`, for instance).
+ * Large programs with configure scripts disable line editing if readline is not present in the system, or do not support it at all since readline is GPL licensed and libedit (the BSD clone) is not as known and available as readline is (real world example of this problem: Tclsh).
+ * Smaller programs that do not use a configure script may not support line editing at all (A problem we had with `redis-cli`, for instance).
  
 The result is a pollution of binaries without line editing support.
 
-So I spent more or less two hours doing a reality check resulting in this little library: is it *really* needed for a line editing library to be 20k lines of code? Apparently not, it is possibe to get a very small, zero configuration, trivial to embed library, that solves the problem. Smaller programs will just include this, supporting line editing out of the box. Larger programs may use this little library or just checking with configure if readline/libedit is available and resorting to Linenoise if not.
+So I spent more or less two hours doing a reality check resulting in this little library: is it *really* needed for a line editing library to be 20k lines of code? Apparently not. It is possible to get a very small, zero configuration, trivial to embed library, that solves the problem. Smaller programs will just include this, supporting line editing out of the box. Larger programs may use this little library or just check with configure if readline/libedit is available and resort to Linenoise if not.
 
 ## Terminals, in 2010.
 
 Apparently almost every terminal you can happen to use today has some kind of support for basic VT100 escape sequences. So I tried to write a lib using just very basic VT100 features. The resulting library appears to work everywhere I tried to use it, and now can work even on ANSI.SYS compatible terminals, since no
 VT220 specific sequences are used anymore.
 
-The library is currently about 850 lines of code. In order to use it in your project just look at the *example.c* file in the source distribution, it is pretty straightforward. The library supports both a blocking mode and a multiplexing mode, see the API documentation later in this file for more information.
+The library is currently about 850 lines of code. In order to use it in your project, just look at the *example.c* file in the source distribution, it is pretty straightforward. The library supports both a blocking mode and a multiplexing mode (see the API documentation later in this file for more information).
 
-Linenoise is BSD-licensed code, so you can use both in free software and commercial software.
+Linenoise is BSD-licensed code, so you can use it in both free software and commercial software.
 
 ## Tested with...
 
@@ -77,8 +77,8 @@ to a program, or use it in an Unix pipeline, there are no limits to the
 length of the line that can be returned.
 
 The returned line should be freed with the `free()` standard system call.
-However sometimes it could happen that your program uses a different dynamic
-allocation library, so you may also used `linenoiseFree` to make sure the
+However, sometimes it could happen that your program uses a different dynamic
+allocation library. In that case, you may also use `linenoiseFree` to make sure the
 line is freed with the same allocator it was created.
 
 The canonical loop used by a program using Linenoise will be something like
@@ -97,7 +97,7 @@ left to make room. This works if your program is one where the user is
 unlikely to write a lot of text, otherwise multi line editing, where multiple
 screens rows are used, can be a lot more comfortable.
 
-In order to enable multi line editing use the following API call:
+In order to enable multi line editing, use the following API call:
 
     linenoiseSetMultiLine(1);
 
@@ -105,9 +105,9 @@ You can disable it using `0` as argument.
 
 ## History
 
-Linenoise supporst history, so that the user does not have to retype
-again and again the same things, but can use the down and up arrows in order
-to search and re-edit already inserted lines of text.
+Linenoise supports history, so that the user can use up and down arrows in order
+to search and re-edit already inserted lines, instead of retyping the same things
+again and again.
 
 The followings are the history API calls:
 
@@ -125,7 +125,7 @@ Note that for history to work, you have to set a length for the history
 a proper one). This is accomplished using the `linenoiseHistorySetMaxLen`
 function.
 
-Linenoise has direct support for persisting the history into an history
+Linenoise has direct support for persisting the history into a history
 file. The functions `linenoiseHistorySave` and `linenoiseHistoryLoad` do
 just that. Both functions return -1 on error and 0 on success.
 
@@ -244,16 +244,16 @@ user typed. You can do this by calling the following function:
 
     void linenoiseClearScreen(void);
 
-## Asyncrhronous API
+## Asynchronous API
 
 Sometimes you want to read from the keyboard but also from sockets or other
 external events, and at the same time there could be input to display to the
 user *while* the user is typing something. Let's call this the "IRC problem",
 since if you want to write an IRC client with linenoise, without using
-some fully featured libcurses approach, you will surely end having such an
+some fully featured libcurses approach, you will surely end up having such an
 issue.
 
-Fortunately now a multiplexing friendly API exists, and it is just what the
+Fortunately, now a multiplexing friendly API exists, and it is just what the
 blocking calls internally use. To start, we need to initialize a linenoise
 context like this:
 
@@ -263,7 +263,7 @@ context like this:
 
 The two -1 and -1 arguments are the stdin/out descriptors. If they are
 set to -1, linenoise will just use the default stdin/out file descriptors.
-Now as soon as we have data from stdin (and we know it via select(2) or
+Now, as soon as we have data from stdin (and we know it via select(2) or
 some other way), we can ask linenoise to read the next character with:
 
     linenoiseEditFeed(&ls);
@@ -281,7 +281,7 @@ After each line is received (or if you want to quit the program, and exit raw mo
     linenoiseEditStop(&ls);
 
 To start reading the next line, a new linenoiseEditStart() must
-be called, in order to reset the state, and so forth, so a typical event
+be called in order to reset the state and so forth, so a typical event
 handler called when the standard input is readable, will work similarly
 to the example below:
 
