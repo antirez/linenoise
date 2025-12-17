@@ -374,70 +374,6 @@ static void refreshLineWithCompletion(struct linenoiseState *ls, linenoiseComple
     if (lc != &ctable) freeCompletions(&ctable);
 }
 
-/* This is an helper function for linenoiseEdit*() and is called when the
- * user types the <tab> key in order to complete the string currently in the
- * input.
- *
- * The state of the editing is encapsulated into the pointed linenoiseState
- * structure as described in the structure definition.
- *
- * If the function returns non-zero, the caller should handle the
- * returned value as a byte read from the standard input, and process
- * it as usually: this basically means that the function may return a byte
- * read from the termianl but not processed. Otherwise, if zero is returned,
- * the input was consumed by the completeLine() function to navigate the
- * possible completions, and the caller should read for the next characters
- * from stdin. */
-static int completeLine(struct linenoiseState *ls, int keypressed) {
-    linenoiseCompletions lc = { 0, NULL };
-    int nwritten;
-    char c = keypressed;
-
-    completionCallback(ls->buf,&lc);
-    if (lc.len == 0) {
-        linenoiseBeep();
-        ls->in_completion = 0;
-    } else {
-        switch(c) {
-            case 9: /* tab */
-                if (ls->in_completion == 0) {
-                    ls->in_completion = 1;
-                    ls->completion_idx = 0;
-                } else {
-                    ls->completion_idx = (ls->completion_idx+1) % (lc.len+1);
-                    if (ls->completion_idx == lc.len) linenoiseBeep();
-                }
-                c = 0;
-                break;
-            case 27: /* escape */
-                /* Re-show original buffer */
-                if (ls->completion_idx < lc.len) refreshLine(ls);
-                ls->in_completion = 0;
-                c = 0;
-                break;
-            default:
-                /* Update buffer and return */
-                if (ls->completion_idx < lc.len) {
-                    nwritten = snprintf(ls->buf,ls->buflen,"%s",
-                        lc.cvec[ls->completion_idx]);
-                    ls->len = ls->pos = nwritten;
-                }
-                ls->in_completion = 0;
-                break;
-        }
-
-        /* Show completion or original buffer */
-        if (ls->in_completion && ls->completion_idx < lc.len) {
-            refreshLineWithCompletion(ls,&lc,REFRESH_ALL);
-        } else {
-            refreshLine(ls);
-        }
-    }
-
-    freeCompletions(&lc);
-    return c; /* Return last read character */
-}
-
 /* Register a callback function to be called for tab-completion. */
 void linenoiseSetCompletionCallback(linenoiseCompletionCallback *fn) {
     completionCallback = fn;
@@ -844,6 +780,128 @@ void linenoiseEditDeletePrevWord(struct linenoiseState *l) {
     refreshLine(l);
 }
 
+void linenoiseHandleTerminalEscapeSequence(struct linenoiseState *l)
+{
+    char seq[3];
+
+    /* Read the next two bytes representing the escape sequence.
+     * Use two calls to handle slow terminals returning the two
+     * chars at different times. */
+    if (read(l->ifd,seq,1) == -1) return ;
+    if (read(l->ifd,seq+1,1) == -1) return ;
+
+    /* ESC [ sequences. */
+    if (seq[0] == '[') {
+        if (seq[1] >= '0' && seq[1] <= '9') {
+            /* Extended escape, read additional byte. */
+            if (read(l->ifd,seq+2,1) == -1) return ;
+            if (seq[2] == '~') {
+                switch(seq[1]) {
+                case '3': /* Delete key. */
+                    linenoiseEditDelete(l);
+                    break;
+                }
+            }
+        } else {
+            switch(seq[1]) {
+            case 'A': /* Up */
+                linenoiseEditHistoryNext(l, LINENOISE_HISTORY_PREV);
+                break;
+            case 'B': /* Down */
+                linenoiseEditHistoryNext(l, LINENOISE_HISTORY_NEXT);
+                break;
+            case 'C': /* Right */
+                linenoiseEditMoveRight(l);
+                break;
+            case 'D': /* Left */
+                linenoiseEditMoveLeft(l);
+                break;
+            case 'H': /* Home */
+                linenoiseEditMoveHome(l);
+                break;
+            case 'F': /* End*/
+                linenoiseEditMoveEnd(l);
+                break;
+            }
+        }
+    }
+
+    /* ESC O sequences. */
+    else if (seq[0] == 'O') {
+        switch(seq[1]) {
+        case 'H': /* Home */
+            linenoiseEditMoveHome(l);
+            break;
+        case 'F': /* End*/
+            linenoiseEditMoveEnd(l);
+            break;
+        }
+    }
+    return ;
+}
+
+/* This is an helper function for linenoiseEdit*() and is called when the
+ * user types the <tab> key in order to complete the string currently in the
+ * input.
+ *
+ * The state of the editing is encapsulated into the pointed linenoiseState
+ * structure as described in the structure definition.
+ *
+ * If the function returns non-zero, the caller should handle the
+ * returned value as a byte read from the standard input, and process
+ * it as usually: this basically means that the function may return a byte
+ * read from the termianl but not processed. Otherwise, if zero is returned,
+ * the input was consumed by the completeLine() function to navigate the
+ * possible completions, and the caller should read for the next characters
+ * from stdin. */
+static int completeLine(struct linenoiseState *ls, int keypressed) {
+    linenoiseCompletions lc = { 0, NULL };
+    int nwritten;
+    char c = keypressed;
+
+    completionCallback(ls->buf,&lc);
+    if (lc.len == 0) {
+        linenoiseBeep();
+        ls->in_completion = 0;
+    } else {
+        switch(c) {
+            case TAB: /* tab */
+                if (ls->in_completion == 0) {
+                    ls->in_completion = 1;
+                    ls->completion_idx = 0;
+                } else {
+                    ls->completion_idx = (ls->completion_idx+1) % (lc.len+1);
+                    if (ls->completion_idx == lc.len) linenoiseBeep();
+                }
+                c = 0;
+                break;
+            default:
+                /* Update buffer and return */
+                if (ls->completion_idx < lc.len) {
+                    nwritten = snprintf(ls->buf,ls->buflen,"%s",
+                        lc.cvec[ls->completion_idx]);
+                    ls->len = ls->pos = nwritten;
+                }
+                ls->in_completion = 0;
+                if (c == ESC) {
+                    linenoiseHandleTerminalEscapeSequence(ls);
+                    c = 0;
+                }
+                break;
+        }
+
+        /* Show completion or original buffer */
+        if (ls->in_completion && ls->completion_idx < lc.len) {
+            refreshLineWithCompletion(ls,&lc,REFRESH_ALL);
+        } else {
+            refreshLine(ls);
+        }
+    }
+
+    freeCompletions(&lc);
+    return c; /* Return last read character */
+}
+
 /* This function is part of the multiplexed API of Linenoise, that is used
  * in order to implement the blocking variant of the API but can also be
  * called by the user directly in an event driven program. It will:
@@ -932,7 +990,6 @@ char *linenoiseEditFeed(struct linenoiseState *l) {
 
     char c;
     int nread;
-    char seq[3];
 
     nread = read(l->ifd,&c,1);
     if (nread < 0) {
@@ -1006,59 +1063,7 @@ char *linenoiseEditFeed(struct linenoiseState *l) {
         linenoiseEditHistoryNext(l, LINENOISE_HISTORY_NEXT);
         break;
     case ESC:    /* escape sequence */
-        /* Read the next two bytes representing the escape sequence.
-         * Use two calls to handle slow terminals returning the two
-         * chars at different times. */
-        if (read(l->ifd,seq,1) == -1) break;
-        if (read(l->ifd,seq+1,1) == -1) break;
-
-        /* ESC [ sequences. */
-        if (seq[0] == '[') {
-            if (seq[1] >= '0' && seq[1] <= '9') {
-                /* Extended escape, read additional byte. */
-                if (read(l->ifd,seq+2,1) == -1) break;
-                if (seq[2] == '~') {
-                    switch(seq[1]) {
-                    case '3': /* Delete key. */
-                        linenoiseEditDelete(l);
-                        break;
-                    }
-                }
-            } else {
-                switch(seq[1]) {
-                case 'A': /* Up */
-                    linenoiseEditHistoryNext(l, LINENOISE_HISTORY_PREV);
-                    break;
-                case 'B': /* Down */
-                    linenoiseEditHistoryNext(l, LINENOISE_HISTORY_NEXT);
-                    break;
-                case 'C': /* Right */
-                    linenoiseEditMoveRight(l);
-                    break;
-                case 'D': /* Left */
-                    linenoiseEditMoveLeft(l);
-                    break;
-                case 'H': /* Home */
-                    linenoiseEditMoveHome(l);
-                    break;
-                case 'F': /* End*/
-                    linenoiseEditMoveEnd(l);
-                    break;
-                }
-            }
-        }
-
-        /* ESC O sequences. */
-        else if (seq[0] == 'O') {
-            switch(seq[1]) {
-            case 'H': /* Home */
-                linenoiseEditMoveHome(l);
-                break;
-            case 'F': /* End*/
-                linenoiseEditMoveEnd(l);
-                break;
-            }
-        }
+        linenoiseHandleTerminalEscapeSequence(l);
         break;
     default:
         if (linenoiseEditInsert(l,c)) return NULL;
