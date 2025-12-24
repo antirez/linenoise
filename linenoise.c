@@ -748,18 +748,47 @@ int linenoiseEditInsert(struct linenoiseState *l, char c) {
     return 0;
 }
 
+static const int kStateTable[2][2] = {
+    { 0, 1 },
+    { -1, 1 }
+};
+
 /* Move cursor on the left. */
-void linenoiseEditMoveLeft(struct linenoiseState *l) {
+void linenoiseEditMoveLeft(struct linenoiseState *l, int by_word) {
     if (l->pos > 0) {
-        l->pos--;
+        if (by_word)
+        {
+            int state = 0;
+
+            while (state >= 0 && --l->pos > 0)
+            {
+                char c = l->buf[l->pos - 1];
+                int wc = isalnum(c) || c == '_' ? 1 : 0;
+                state = kStateTable[state][wc];
+            }
+        }
+        else
+            l->pos--;
         refreshLine(l);
     }
 }
 
 /* Move cursor on the right. */
-void linenoiseEditMoveRight(struct linenoiseState *l) {
+void linenoiseEditMoveRight(struct linenoiseState *l, int by_word) {
     if (l->pos != l->len) {
-        l->pos++;
+        if (by_word)
+        {
+            int state = 0;
+
+            while (state >= 0 && ++l->pos < l->len)
+            {
+                char c = l->buf[l->pos];
+                int wc = isalnum(c) || c == '_' ? 1 : 0;
+                state = kStateTable[state][wc];
+            }
+        }
+        else
+            l->pos++;
         refreshLine(l);
     }
 }
@@ -828,16 +857,21 @@ void linenoiseEditBackspace(struct linenoiseState *l) {
     }
 }
 
-/* Delete the previosu word, maintaining the cursor at the start of the
+/* Delete the previous word, maintaining the cursor at the start of the
  * current word. */
 void linenoiseEditDeletePrevWord(struct linenoiseState *l) {
     size_t old_pos = l->pos;
     size_t diff;
 
-    while (l->pos > 0 && l->buf[l->pos-1] == ' ')
-        l->pos--;
-    while (l->pos > 0 && l->buf[l->pos-1] != ' ')
-        l->pos--;
+    int state = 0;
+
+    while (state >= 0 && --l->pos > 0)
+    {
+        char c = l->buf[l->pos - 1];
+        int wc = isalnum(c) || c == '_' ? 1 : 0;
+        state = kStateTable[state][wc];
+    }
+
     diff = old_pos - l->pos;
     memmove(l->buf+l->pos,l->buf+old_pos,l->len-old_pos+1);
     l->len -= diff;
@@ -932,7 +966,6 @@ char *linenoiseEditFeed(struct linenoiseState *l) {
 
     char c;
     int nread;
-    char seq[3];
 
     nread = read(l->ifd,&c,1);
     if (nread < 0) {
@@ -994,10 +1027,10 @@ char *linenoiseEditFeed(struct linenoiseState *l) {
         }
         break;
     case CTRL_B:     /* ctrl-b */
-        linenoiseEditMoveLeft(l);
+        linenoiseEditMoveLeft(l, 0);
         break;
     case CTRL_F:     /* ctrl-f */
-        linenoiseEditMoveRight(l);
+        linenoiseEditMoveRight(l, 0);
         break;
     case CTRL_P:    /* ctrl-p */
         linenoiseEditHistoryNext(l, LINENOISE_HISTORY_PREV);
@@ -1006,51 +1039,66 @@ char *linenoiseEditFeed(struct linenoiseState *l) {
         linenoiseEditHistoryNext(l, LINENOISE_HISTORY_NEXT);
         break;
     case ESC:    /* escape sequence */
+    {
         /* Read the next two bytes representing the escape sequence.
-         * Use two calls to handle slow terminals returning the two
-         * chars at different times. */
-        if (read(l->ifd,seq,1) == -1) break;
-        if (read(l->ifd,seq+1,1) == -1) break;
+            * Use two calls to handle slow terminals returning the two
+            * chars at different times. */
+
+            /* Read character following the escape first */
+        if (read(l->ifd,&c,1) == -1) break;
 
         /* ESC [ sequences. */
-        if (seq[0] == '[') {
-            if (seq[1] >= '0' && seq[1] <= '9') {
-                /* Extended escape, read additional byte. */
-                if (read(l->ifd,seq+2,1) == -1) break;
-                if (seq[2] == '~') {
-                    switch(seq[1]) {
-                    case '3': /* Delete key. */
+        if (c == '[') {    /* CSI */
+            int a[4] = {};  /* CSI commands can have multiple integer arguments */
+            int i = 0;
+            
+            while (i < 4)
+            {
+                c = -1;
+                if (read(l->ifd, &c, 1) == -1) break;
+                if (c >= '0' && c <= '9')
+                    a[i] = a[i] * 10 + c - '0';
+                else if (c == ';')
+                    ++i;
+                else
+                    break;
+            }
+            if (c == -1 || i == 4) break;
+            
+            switch(c) {
+            case '~':
+                switch (a[i])
+                {
+                    case 3:
                         linenoiseEditDelete(l);
                         break;
-                    }
                 }
-            } else {
-                switch(seq[1]) {
-                case 'A': /* Up */
-                    linenoiseEditHistoryNext(l, LINENOISE_HISTORY_PREV);
-                    break;
-                case 'B': /* Down */
-                    linenoiseEditHistoryNext(l, LINENOISE_HISTORY_NEXT);
-                    break;
-                case 'C': /* Right */
-                    linenoiseEditMoveRight(l);
-                    break;
-                case 'D': /* Left */
-                    linenoiseEditMoveLeft(l);
-                    break;
-                case 'H': /* Home */
-                    linenoiseEditMoveHome(l);
-                    break;
-                case 'F': /* End*/
-                    linenoiseEditMoveEnd(l);
-                    break;
-                }
+                break;
+            case 'A': /* Up */
+                linenoiseEditHistoryNext(l, LINENOISE_HISTORY_PREV);
+                break;
+            case 'B': /* Down */
+                linenoiseEditHistoryNext(l, LINENOISE_HISTORY_NEXT);
+                break;
+            case 'C': /* Right */
+                linenoiseEditMoveRight(l, a[1] == 5);
+                break;
+            case 'D': /* Left */
+                linenoiseEditMoveLeft(l, a[1] == 5);
+                break;
+            case 'H': /* Home */
+                linenoiseEditMoveHome(l);
+                break;
+            case 'F': /* End*/
+                linenoiseEditMoveEnd(l);
+                break;
             }
         }
 
         /* ESC O sequences. */
-        else if (seq[0] == 'O') {
-            switch(seq[1]) {
+        else if (c == 'O') {
+            if (read(l->ifd, &c, 1) == -1) break;
+            switch(c) {
             case 'H': /* Home */
                 linenoiseEditMoveHome(l);
                 break;
@@ -1060,6 +1108,7 @@ char *linenoiseEditFeed(struct linenoiseState *l) {
             }
         }
         break;
+    }
     default:
         if (linenoiseEditInsert(l,c)) return NULL;
         break;
