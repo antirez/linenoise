@@ -756,12 +756,30 @@ void linenoiseEditMoveLeft(struct linenoiseState *l) {
     }
 }
 
+/* Move cursor to the beginning of the previous word. */
+void linenoiseEditMoveLeftWord(struct linenoiseState *l) {
+    while (l->pos > 0 && l->buf[l->pos-1] == ' ')
+        l->pos--;
+    while (l->pos > 0 && l->buf[l->pos-1] != ' ')
+        l->pos--;
+    refreshLine(l);
+}
+
 /* Move cursor on the right. */
 void linenoiseEditMoveRight(struct linenoiseState *l) {
     if (l->pos != l->len) {
         l->pos++;
         refreshLine(l);
     }
+}
+
+/* Move cursor to the end of the next word. */
+void linenoiseEditMoveRightWord(struct linenoiseState *l) {
+    while (l->pos < l->len && l->buf[l->pos] == ' ')
+        l->pos++;
+    while (l->pos < l->len && l->buf[l->pos] != ' ')
+        l->pos++;
+    refreshLine(l);
 }
 
 /* Move cursor to the start of the line. */
@@ -932,7 +950,7 @@ char *linenoiseEditFeed(struct linenoiseState *l) {
 
     char c;
     int nread;
-    char seq[3];
+    char seq[32];
 
     nread = read(l->ifd,&c,1);
     if (nread < 0) {
@@ -1006,23 +1024,29 @@ char *linenoiseEditFeed(struct linenoiseState *l) {
         linenoiseEditHistoryNext(l, LINENOISE_HISTORY_NEXT);
         break;
     case ESC:    /* escape sequence */
-        /* Read the next two bytes representing the escape sequence.
-         * Use two calls to handle slow terminals returning the two
-         * chars at different times. */
         if (read(l->ifd,seq,1) == -1) break;
-        if (read(l->ifd,seq+1,1) == -1) break;
+        if (seq[0] == '[') { /* ESC [ */
+            /* terminated by a byte in \x40-\x7E inclusive */
+            memset(seq, 0, sizeof(seq));
+            for (size_t pos = 1; pos < sizeof(seq); pos++) {
+                if (read(l->ifd,seq+pos,1) == -1) {
+                    /* The next read will be fucked, but continue anyways.
+                     * The same goes for if it runs out of space in seq. */
+                    return linenoiseEditMore;
+                }
+                if (0x40 <= seq[pos] && seq[pos] <= 0x7E) break;
+            }
 
-        /* ESC [ sequences. */
-        if (seq[0] == '[') {
-            if (seq[1] >= '0' && seq[1] <= '9') {
-                /* Extended escape, read additional byte. */
-                if (read(l->ifd,seq+2,1) == -1) break;
-                if (seq[2] == '~') {
-                    switch(seq[1]) {
-                    case '3': /* Delete key. */
-                        linenoiseEditDelete(l);
-                        break;
-                    }
+            if (seq[1] == '3' && seq[2] == '~') {
+                linenoiseEditDelete(l);
+            } else if (seq[1] == '1' && seq[2] == ';' && seq[3] == '5') {
+                switch(seq[4]) {
+                case 'C': /* Ctrl+Right */
+                    linenoiseEditMoveRightWord(l);
+                    break;
+                case 'D': /* Ctrl+Left */
+                    linenoiseEditMoveLeftWord(l);
+                    break;
                 }
             } else {
                 switch(seq[1]) {
@@ -1046,10 +1070,8 @@ char *linenoiseEditFeed(struct linenoiseState *l) {
                     break;
                 }
             }
-        }
-
-        /* ESC O sequences. */
-        else if (seq[0] == 'O') {
+        } else if (seq[0] == 'O') { /* ESC O */
+            if (read(l->ifd,seq+1,1) == -1) break;
             switch(seq[1]) {
             case 'H': /* Home */
                 linenoiseEditMoveHome(l);
