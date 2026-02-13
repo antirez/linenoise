@@ -1,4 +1,5 @@
-linenoise_example
+linenoise-example
+linenoise-test
 *.dSYM
 history.txt
 *.o

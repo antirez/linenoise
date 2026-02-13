@@ -1,13 +1,15 @@
 # Linenoise
 
 A minimal, zero-config, BSD licensed, readline replacement used in Redis,
-MongoDB, and Android.
+MongoDB, Android and many other projects.
 
 * Single and multi line editing mode with the usual key bindings implemented.
 * History handling.
 * Completion.
 * Hints (suggestions at the right of the prompt as you type).
-* About 1,100 lines of BSD license source code.
+* Multiplexing mode, with prompt hiding/restoring for asynchronous output.
+* UTF-8 support for multi-byte characters and emoji.
+* About ~1100 lines (comments and spaces excluded) of BSD license source code.
 * Only uses a subset of VT100 escapes (ANSI.SYS compatible).
 
 ## Can a line editing library be 20k lines of code?
@@ -16,8 +18,8 @@ Line editing with some support for history is a really important feature for com
 
 So what usually happens is either:
 
- * Large programs with configure scripts disabling line editing if readline is not present in the system, or not supporting it at all since readline is GPL licensed and libedit (the BSD clone) is not as known and available as readline is (Real world example of this problem: Tclsh).
- * Smaller programs not using a configure script not supporting line editing at all (A problem we had with Redis-cli for instance).
+ * Large programs with configure scripts disabling line editing if readline is not present in the system, or not supporting it at all since readline is GPL licensed and libedit (the BSD clone) is not as known and available as readline is (real world example of this problem: Tclsh).
+ * Smaller programs not using a configure script not supporting line editing at all (A problem we had with `redis-cli`, for instance).
  
 The result is a pollution of binaries without line editing support.
 
@@ -28,7 +30,9 @@ So I spent more or less two hours doing a reality check resulting in this little
 Apparently almost every terminal you can happen to use today has some kind of support for basic VT100 escape sequences. So I tried to write a lib using just very basic VT100 features. The resulting library appears to work everywhere I tried to use it, and now can work even on ANSI.SYS compatible terminals, since no
 VT220 specific sequences are used anymore.
 
-The library is currently about 1100 lines of code. In order to use it in your project just look at the *example.c* file in the source distribution, it is trivial. Linenoise is BSD code, so you can use both in free software and commercial software.
+The library is currently about 850 lines of code. In order to use it in your project just look at the *example.c* file in the source distribution, it is pretty straightforward. The library supports both a blocking mode and a multiplexing mode, see the API documentation later in this file for more information.
+
+Linenoise is BSD-licensed code, so you can use both in free software and commercial software.
 
 ## Tested with...
 
@@ -57,7 +61,7 @@ Send feedbacks to antirez at gmail
 
 Linenoise is very easy to use, and reading the example shipped with the
 library should get you up to speed ASAP. Here is a list of API calls
-and how to use them.
+and how to use them. Let's start with the simple blocking mode:
 
     char *linenoise(const char *prompt);
 
@@ -241,7 +245,136 @@ user typed. You can do this by calling the following function:
 
     void linenoiseClearScreen(void);
 
+## Asyncrhronous API
+
+Sometimes you want to read from the keyboard but also from sockets or other
+external events, and at the same time there could be input to display to the
+user *while* the user is typing something. Let's call this the "IRC problem",
+since if you want to write an IRC client with linenoise, without using
+some fully featured libcurses approach, you will surely end having such an
+issue.
+
+Fortunately now a multiplexing friendly API exists, and it is just what the
+blocking calls internally use. To start, we need to initialize a linenoise
+context like this:
+
+    struct linenoiseState ls;
+    char buf[1024];
+    linenoiseEditStart(&ls,-1,-1,buf,sizeof(buf),"some prompt> ");
+
+The two -1 and -1 arguments are the stdin/out descriptors. If they are
+set to -1, linenoise will just use the default stdin/out file descriptors.
+Now as soon as we have data from stdin (and we know it via select(2) or
+some other way), we can ask linenoise to read the next character with:
+
+    linenoiseEditFeed(&ls);
+
+The function returns a `char` pointer: if the user didn't yet press enter
+to provide a line to the program, it will return `linenoiseEditMore`, that
+means we need to call `linenoiseEditFeed()` again when more data is
+available. If the function returns non NULL, then this is a heap allocated
+data (to be freed with `linenoiseFree()`) representing the user input.
+When the function returns NULL, than the user pressed CTRL-C or CTRL-D
+with an empty line, to quit the program, or there was some I/O error.
+
+After each line is received (or if you want to quit the program, and exit raw mode), the following function needs to be called:
+
+    linenoiseEditStop(&ls);
+
+To start reading the next line, a new linenoiseEditStart() must
+be called, in order to reset the state, and so forth, so a typical event
+handler called when the standard input is readable, will work similarly
+to the example below:
+
+``` c
+void stdinHasSomeData(void) {
+    char *line = linenoiseEditFeed(&LineNoiseState);
+    if (line == linenoiseEditMore) return;
+    linenoiseEditStop(&LineNoiseState);
+    if (line == NULL) exit(0);
+
+    printf("line: %s\n", line);
+    linenoiseFree(line);
+    linenoiseEditStart(&LineNoiseState,-1,-1,LineNoiseBuffer,sizeof(LineNoiseBuffer),"serial> ");
+}
+```
+
+Now that we have a way to avoid blocking in the user input, we can use
+two calls to hide/show the edited line, so that it is possible to also
+show some input that we received (from socekts, bluetooth, whatever) on
+screen:
+
+    linenoiseHide(&ls);
+    printf("some data...\n");
+    linenoiseShow(&ls);
+
+To the API calls, the linenoise example C file implements a multiplexing
+example using select(2) and the asynchronous API:
+
+```c
+    struct linenoiseState ls;
+    char buf[1024];
+    linenoiseEditStart(&ls,-1,-1,buf,sizeof(buf),"hello> ");
+
+    while(1) {
+        // Select(2) setup code removed...
+        retval = select(ls.ifd+1, &readfds, NULL, NULL, &tv);
+        if (retval == -1) {
+            perror("select()");
+            exit(1);
+        } else if (retval) {
+            line = linenoiseEditFeed(&ls);
+            /* A NULL return means: line editing is continuing.
+             * Otherwise the user hit enter or stopped editing
+             * (CTRL+C/D). */
+            if (line != linenoiseEditMore) break;
+        } else {
+            // Timeout occurred
+            static int counter = 0;
+            linenoiseHide(&ls);
+            printf("Async output %d.\n", counter++);
+            linenoiseShow(&ls);
+        }
+    }
+    linenoiseEditStop(&ls);
+    if (line == NULL) exit(0); /* Ctrl+D/C. */
+```
+
+You can test the example by running the example program with the `--async` option.
+
+## Running the tests
+
+To run the test suite:
+
+    make test
+
+The tests will display a virtual terminal showing linenoise output in real-time, making it easy to see what's being tested and debug any failures.
+
+### What the tests cover
+
+The test suite verifies:
+
+* Basic typing and cursor movement (left, right, home, end)
+* Backspace and delete operations
+* UTF-8 multi-byte characters (accented letters, CJK)
+* Emoji and grapheme clusters (skin tones, ZWJ sequences like flags)
+* Horizontal scrolling for long lines
+* Multiline mode editing and navigation
+* History navigation in multiline mode
+* Word and line deletion (Ctrl-W, Ctrl-U)
+
+### How the test harness works
+
+The test program (`linenoise-test.c`) implements a VT100 terminal emulator that captures and verifies linenoise output:
+
+1. **Fork and pipes**: The test harness forks `linenoise-example`, connecting to it via pipes. The child process sees `LINENOISE_ASSUME_TTY=1` to enable terminal mode despite not having a real TTY.
+2. **VT100 emulator**: A minimal VT100 emulator parses escape sequences (cursor movement, screen clearing, etc.) and maintains a virtual screen buffer. Each cell stores a complete UTF-8 grapheme cluster and its display width.
+3. **Visual rendering**: After each operation, the virtual screen is rendered to your real terminal with a border, so you can watch the test execute and see exactly what linenoise is displaying.
+4. **Assertions**: Tests verify screen contents and cursor position against expected values.
+
+This approach tests linenoise as users actually experience it, catching rendering bugs that unit tests would miss.
+
 ## Related projects
 
-* [Linenoise NG](https://github.com/arangodb/linenoise-ng) is a fork of Linenoise that aims to add more advanced features like UTF-8 support, Windows support and other features. Uses C++ instead of C as development language.
+* [Linenoise NG](https://github.com/arangodb/linenoise-ng) is a fork of Linenoise that aims to add more advanced features like Windows support and other features. Uses C++ instead of C as development language.
 * [Linenoise-swift](https://github.com/andybest/linenoise-swift) is a reimplementation of Linenoise written in Swift.
