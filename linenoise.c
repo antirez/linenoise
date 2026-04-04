@@ -1093,6 +1093,11 @@ void linenoiseShow(struct linenoiseState *l) {
     }
 }
 
+/* In async mode, call this after terminal size has changed. */
+void linenoiseResize(struct linenoiseState *l) {
+    l->cols = getColumns(l->ifd, l->ofd);
+}
+
 /* Insert the character(s) 'c' of length 'clen' at cursor current position.
  * This handles both single-byte ASCII and multi-byte UTF-8 sequences.
  *
