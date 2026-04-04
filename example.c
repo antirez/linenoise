@@ -1,8 +1,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <signal.h>
+#include <unistd.h>
+#include <errno.h>
 #include <sys/select.h>
 #include "linenoise.h"
+
+int resizePipe[2] = {-1, -1};
 
 void completion(const char *buf, linenoiseCompletions *lc) {
     if (buf[0] == 'h') {
@@ -20,10 +25,26 @@ char *hints(const char *buf, int *color, int *bold) {
     return NULL;
 }
 
+void handleResize(int sig) {
+    write(resizePipe[1], &sig, sizeof(sig));
+}
+
+int makeResizePipe(void) {
+    pipe(resizePipe);
+
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = handleResize;
+    sigaction(SIGWINCH, &sa, NULL);
+
+    return resizePipe[0];
+}
+
 int main(int argc, char **argv) {
     char *line;
     char *prgname = argv[0];
     int async = 0;
+    int async_resize = 0;
 
     /* Parse options, with --multiline we enable multi line editing. */
     while(argc > 1) {
@@ -37,8 +58,10 @@ int main(int argc, char **argv) {
             exit(0);
         } else if (!strcmp(*argv,"--async")) {
             async = 1;
+        } else if (!strcmp(*argv,"--async-resize")) {
+            async_resize = 1;
         } else {
-            fprintf(stderr, "Usage: %s [--multiline] [--keycodes] [--async]\n", prgname);
+            fprintf(stderr, "Usage: %s [--multiline] [--keycodes] [--async] [--async-resize]\n", prgname);
             exit(1);
         }
     }
@@ -69,34 +92,47 @@ int main(int argc, char **argv) {
              * using the select(2) timeout. */
             struct linenoiseState ls;
             char buf[1024];
+            int resizefd = async_resize ? makeResizePipe() : -1;
             linenoiseEditStart(&ls,-1,-1,buf,sizeof(buf),"hello> ");
             while(1) {
-		fd_set readfds;
-		struct timeval tv;
-		int retval;
+                fd_set readfds;
+                struct timeval tv;
+                int retval, maxfd;
 
-		FD_ZERO(&readfds);
-		FD_SET(ls.ifd, &readfds);
-		tv.tv_sec = 1; // 1 sec timeout
-		tv.tv_usec = 0;
+                FD_ZERO(&readfds);
+                FD_SET(ls.ifd, &readfds);
+                tv.tv_sec = 1; // 1 sec timeout
+                tv.tv_usec = 0;
+                maxfd = ls.ifd;
 
-		retval = select(ls.ifd+1, &readfds, NULL, NULL, &tv);
-		if (retval == -1) {
-		    perror("select()");
-                    exit(1);
-		} else if (retval) {
-		    line = linenoiseEditFeed(&ls);
+                if (resizefd > 0) {
+                    FD_SET(resizefd, &readfds);
+                    if (resizefd > maxfd) maxfd = resizefd;
+                }
+
+                retval = select(maxfd+1, &readfds, NULL, NULL, &tv);
+                if (retval == -1) {
+                    if (errno != EINTR) {
+                        perror("select()");
+                        exit(1);
+                    }
+                } else if (FD_ISSET(ls.ifd, &readfds)) {
+                    line = linenoiseEditFeed(&ls);
                     /* A NULL return means: line editing is continuing.
                      * Otherwise the user hit enter or stopped editing
                      * (CTRL+C/D). */
                     if (line != linenoiseEditMore) break;
-		} else {
-		    // Timeout occurred
+                } else if (FD_ISSET(resizefd, &readfds)) {
+                    int ignore;
+                    read(resizefd, &ignore, sizeof(ignore));
+                    linenoiseResize(&ls);
+                } else {
+                    // Timeout occurred
                     static int counter = 0;
                     linenoiseHide(&ls);
-		    printf("Async output %d.\n", counter++);
+                    printf("Async output %d.\n", counter++);
                     linenoiseShow(&ls);
-		}
+                }
             }
             linenoiseEditStop(&ls);
             if (line == NULL) exit(0); /* Ctrl+D/C. */
