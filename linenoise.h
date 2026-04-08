@@ -39,6 +39,14 @@
 #ifndef __LINENOISE_H
 #define __LINENOISE_H
 
+#ifndef LINENOISE_DEFAULT_HISTORY_MAX_LEN
+#define LINENOISE_DEFAULT_HISTORY_MAX_LEN 100
+#endif
+
+#ifndef LINENOISE_MAX_LINE
+#define LINENOISE_MAX_LINE 4096
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
