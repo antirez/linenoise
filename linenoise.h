@@ -36,8 +36,8 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __LINENOISE_H
-#define __LINENOISE_H
+#ifndef LINENOISE_H
+#define LINENOISE_H
 
 #ifndef LINENOISE_DEFAULT_HISTORY_MAX_LEN
 #define LINENOISE_DEFAULT_HISTORY_MAX_LEN 100
@@ -119,4 +119,4 @@ void linenoiseMaskModeDisable(void);
 }
 #endif
 
-#endif /* __LINENOISE_H */
+#endif /* LINENOISE_H */
