@@ -1427,6 +1427,73 @@ static void test_undo_stack_overflow(void) {
     test_end();
 }
 
+/* Test for undo stack limit of 3.
+ * This test is designed to verify the stack limit behavior when compiled with:
+ *   make CPPFLAGS="-DLINENOISE_UNDO_MAX_LEN=3"
+ * 
+ * Expected behavior with stack size 3:
+ * - 4 separate undo units will cause the 1st to be evicted
+ * - After 4 undo units, only units 2, 3, 4 are preserved
+ * - Undoing should restore to the oldest preserved state, not empty
+ */
+static void test_undo_stack_limit_3(void) {
+    if (test_start("Undo Stack Limit = 3", "./linenoise-example") == -1) return;
+
+    int prompt_len = strlen("hello> ");
+
+    /* Create 4 separate undo units using cursor movement to break continuation.
+     * 
+     * With stack size 3:
+     * - Unit 1: empty -> type 'a' (state: empty)
+     * - Unit 2: "a" -> type 'b' (state: "a")
+     * - Unit 3: "ab" -> type 'c' (state: "ab")
+     * - Unit 4: "abc" -> type 'd' (state: "abc")
+     * 
+     * After 4 units:
+     * - Unit 1 is evicted (stack only holds 3)
+     * - Units 2, 3, 4 remain
+     */
+
+    send_keys("a");
+    send_keys(KEY_LEFT);
+    send_keys(KEY_RIGHT);
+
+    send_keys("b");
+    send_keys(KEY_LEFT);
+    send_keys(KEY_RIGHT);
+
+    send_keys("c");
+    send_keys(KEY_LEFT);
+    send_keys(KEY_RIGHT);
+
+    send_keys("d");
+
+    assert_row_contains(0, "abcd");
+
+    /* Undo 3 times.
+     * With stack size 3, we should be able to undo 3 times:
+     * - 1st undo: pop "abc" (unit 4) -> current = "abc"
+     * - 2nd undo: pop "ab" (unit 3) -> current = "ab"
+     * - 3rd undo: pop "a" (unit 2) -> current = "a"
+     * 
+     * Unit 1 was evicted, so we CANNOT undo to empty.
+     */
+    send_keys(KEY_CTRL_Z);
+    assert_row_contains(0, "abc");
+
+    send_keys(KEY_CTRL_Z);
+    assert_row_contains(0, "ab");
+
+    send_keys(KEY_CTRL_Z);
+    assert_row_contains(0, "a");
+
+    /* One more undo should do nothing (unit 1 was evicted) */
+    send_keys(KEY_CTRL_Z);
+    assert_row_contains(0, "a");
+
+    test_end();
+}
+
 static void test_tab_no_completions(void) {
     if (test_start("TAB With No Completions", "./linenoise-example") == -1) return;
 
@@ -1445,8 +1512,15 @@ static void test_tab_no_completions(void) {
 /* ========================= Main ========================= */
 
 int main(int argc, char **argv) {
-    (void)argc;
-    (void)argv;
+    int run_stack_3_test = 0;
+    int i;
+
+    /* Parse command line arguments */
+    for (i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--stack-3") == 0) {
+            run_stack_3_test = 1;
+        }
+    }
 
     printf("\x1b[2J\x1b[H");  /* Clear screen */
     printf("\x1b[1;35m");
@@ -1456,36 +1530,45 @@ int main(int argc, char **argv) {
     printf("╚════════════════════════════════════════╝\n");
     printf("\x1b[0m\n");
 
-    /* Run single-line mode tests. */
-    test_simple_typing();
-    test_cursor_movement();
-    test_backspace_delete();
-    test_utf8_typing();
-    test_utf8_emoji();
-    test_utf8_cursor_over_emoji();
-    test_utf8_backspace_emoji();
-    test_utf8_backspace_4byte_only();
-    test_utf8_grapheme_clusters();
-    test_utf8_grapheme_cursor_movement();
-    test_emulator_grapheme_storage();
-    test_ctrl_w_delete_word();
-    test_ctrl_u_delete_line();
-    test_undo_redo();
-    test_undo_ctrl_u();
-    test_undo_continuous_input();
-    test_undo_cursor_move_breaks_continuation();
-    test_undo_stack_overflow();
-    test_tab_no_completions();
+    if (run_stack_3_test) {
+        /* Run only the stack limit = 3 test */
+        printf("\n\x1b[1;33m");
+        printf("Running tests for UNDO_STACK_LIMIT = 3...\n");
+        printf("(Expected when compiled with -DLINENOISE_UNDO_MAX_LEN=3)\n");
+        printf("\x1b[0m\n");
+        test_undo_stack_limit_3();
+    } else {
+        /* Run all default tests */
+        test_simple_typing();
+        test_cursor_movement();
+        test_backspace_delete();
+        test_utf8_typing();
+        test_utf8_emoji();
+        test_utf8_cursor_over_emoji();
+        test_utf8_backspace_emoji();
+        test_utf8_backspace_4byte_only();
+        test_utf8_grapheme_clusters();
+        test_utf8_grapheme_cursor_movement();
+        test_emulator_grapheme_storage();
+        test_ctrl_w_delete_word();
+        test_ctrl_u_delete_line();
+        test_undo_redo();
+        test_undo_ctrl_u();
+        test_undo_continuous_input();
+        test_undo_cursor_move_breaks_continuation();
+        test_undo_stack_overflow();
+        test_tab_no_completions();
 
-    /* Horizontal scrolling tests (single-line mode). */
-    test_horizontal_scroll();
-    test_horizontal_scroll_utf8();
+        /* Horizontal scrolling tests (single-line mode). */
+        test_horizontal_scroll();
+        test_horizontal_scroll_utf8();
 
-    /* Run multi-line mode tests. */
-    test_multiline_wrap();
-    test_multiline_cursor_movement();
-    test_multiline_utf8();
-    test_multiline_history();
+        /* Run multi-line mode tests. */
+        test_multiline_wrap();
+        test_multiline_cursor_movement();
+        test_multiline_utf8();
+        test_multiline_history();
+    }
 
     /* Summary. */
     printf("\n\x1b[1;35m");

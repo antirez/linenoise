@@ -120,7 +120,9 @@
 
 #define LINENOISE_DEFAULT_HISTORY_MAX_LEN 100
 #define LINENOISE_MAX_LINE 4096
+#ifndef LINENOISE_UNDO_MAX_LEN
 #define LINENOISE_UNDO_MAX_LEN 100
+#endif
 
 typedef struct linenoiseUndoState {
     char *buf;
