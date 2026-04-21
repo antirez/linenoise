@@ -657,6 +657,8 @@ static void send_keys(const char *keys) {
 #define KEY_CTRL_W  "\x17"
 #define KEY_CTRL_T  "\x14"
 #define KEY_CTRL_C  "\x03"
+#define KEY_CTRL_Z  "\x1a"
+#define KEY_CTRL_Y  "\x19"
 
 /* ========================= Test Assertions ========================= */
 
@@ -1239,6 +1241,62 @@ static void test_multiline_history(void) {
     test_end();
 }
 
+static void test_undo_redo(void) {
+    if (test_start("Undo/Redo", "./linenoise-example") == -1) return;
+
+    int prompt_len = strlen("hello> ");
+
+    /* Test 1: Simple undo after typing.
+     * Use "test" instead of "hello" to avoid triggering hints. */
+    send_keys("test");
+    assert_row_contains(0, "test");
+
+    /* Type one more char, then undo twice. */
+    send_keys("x");
+    assert_row_contains(0, "testx");
+
+    send_keys(KEY_CTRL_Z);  /* Undo 'x' */
+    assert_row_contains(0, "test");
+    assert_row_contains(0, "hello> test");
+
+    send_keys(KEY_CTRL_Z);  /* Undo 't' */
+    assert_row_contains(0, "tes");
+
+    /* Test 2: Redo. */
+    send_keys(KEY_CTRL_Y);  /* Redo 't' */
+    assert_row_contains(0, "hello> test");
+
+    send_keys(KEY_CTRL_Y);  /* Redo 'x' */
+    assert_row_contains(0, "testx");
+
+    /* Test 3: New edit clears redo stack. */
+    send_keys(KEY_BACKSPACE);  /* Delete 'x' - this should clear redo stack */
+    assert_row_contains(0, "hello> test");
+
+    send_keys(KEY_CTRL_Y);  /* Redo should do nothing now */
+    assert_row_contains(0, "hello> test");  /* Still "test" */
+
+    test_end();
+}
+
+static void test_undo_ctrl_u(void) {
+    if (test_start("Undo Ctrl-U", "./linenoise-example") == -1) return;
+
+    int prompt_len = strlen("hello> ");
+
+    /* Type "test" (not "hello" to avoid hints), then Ctrl+U to clear, then Ctrl+Z to undo. */
+    send_keys("test");
+    assert_row_contains(0, "hello> test");
+
+    send_keys(KEY_CTRL_U);  /* Clear entire line */
+    assert_cursor(0, prompt_len);
+
+    send_keys(KEY_CTRL_Z);  /* Undo the clear */
+    assert_row_contains(0, "hello> test");  /* Should be restored */
+
+    test_end();
+}
+
 static void test_tab_no_completions(void) {
     if (test_start("TAB With No Completions", "./linenoise-example") == -1) return;
 
@@ -1282,6 +1340,8 @@ int main(int argc, char **argv) {
     test_emulator_grapheme_storage();
     test_ctrl_w_delete_word();
     test_ctrl_u_delete_line();
+    test_undo_redo();
+    test_undo_ctrl_u();
     test_tab_no_completions();
 
     /* Horizontal scrolling tests (single-line mode). */

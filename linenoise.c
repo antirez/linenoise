@@ -120,6 +120,27 @@
 
 #define LINENOISE_DEFAULT_HISTORY_MAX_LEN 100
 #define LINENOISE_MAX_LINE 4096
+#define LINENOISE_UNDO_MAX_LEN 100
+
+typedef struct linenoiseUndoState {
+    char *buf;
+    size_t len;
+    size_t pos;
+} linenoiseUndoState;
+
+static linenoiseUndoState *undo_stack = NULL;
+static linenoiseUndoState *redo_stack = NULL;
+static int undo_stack_len = 0;
+static int redo_stack_len = 0;
+static int undo_stack_max = LINENOISE_UNDO_MAX_LEN;
+static int redo_stack_max = LINENOISE_UNDO_MAX_LEN;
+
+static void linenoiseUndoFreeState(linenoiseUndoState *state);
+static void linenoiseUndoClearStack(linenoiseUndoState **stack, int *len);
+static void linenoiseUndoPush(linenoiseUndoState **stack, int *len, int *max, struct linenoiseState *l);
+static int linenoiseUndoPop(linenoiseUndoState **stack, int *len, struct linenoiseState *l);
+static void linenoiseUndoSaveState(struct linenoiseState *l);
+
 static char *unsupported_term[] = {"dumb","cons25","emacs",NULL};
 static linenoiseCompletionCallback *completionCallback = NULL;
 static linenoiseHintsCallback *hintsCallback = NULL;
@@ -464,6 +485,8 @@ enum KEY_ACTION{
 	CTRL_T = 20,        /* Ctrl-t */
 	CTRL_U = 21,        /* Ctrl+u */
 	CTRL_W = 23,        /* Ctrl+w */
+	CTRL_Y = 25,        /* Ctrl+y */
+	CTRL_Z = 26,        /* Ctrl+z */
 	ESC = 27,           /* Escape */
 	BACKSPACE =  127    /* Backspace */
 };
@@ -1099,6 +1122,7 @@ void linenoiseShow(struct linenoiseState *l) {
  * On error writing to the terminal -1 is returned, otherwise 0. */
 int linenoiseEditInsert(struct linenoiseState *l, const char *c, size_t clen) {
     if (l->len + clen <= l->buflen) {
+        linenoiseUndoSaveState(l);
         if (l->len == l->pos) {
             /* Append at end of line. */
             memcpy(l->buf+l->pos, c, clen);
@@ -1194,6 +1218,7 @@ void linenoiseEditHistoryNext(struct linenoiseState *l, int dir) {
  * Now handles multi-byte UTF-8 characters. */
 void linenoiseEditDelete(struct linenoiseState *l) {
     if (l->len > 0 && l->pos < l->len) {
+        linenoiseUndoSaveState(l);
         size_t clen = utf8NextCharLen(l->buf, l->pos, l->len);
         memmove(l->buf+l->pos, l->buf+l->pos+clen, l->len-l->pos-clen);
         l->len -= clen;
@@ -1205,6 +1230,7 @@ void linenoiseEditDelete(struct linenoiseState *l) {
 /* Backspace implementation. Deletes the UTF-8 character before the cursor. */
 void linenoiseEditBackspace(struct linenoiseState *l) {
     if (l->pos > 0 && l->len > 0) {
+        linenoiseUndoSaveState(l);
         size_t clen = utf8PrevCharLen(l->buf, l->pos);
         memmove(l->buf+l->pos-clen, l->buf+l->pos, l->len-l->pos);
         l->pos -= clen;
@@ -1217,19 +1243,22 @@ void linenoiseEditBackspace(struct linenoiseState *l) {
 /* Delete the previous word, maintaining the cursor at the start of the
  * current word. Handles UTF-8 by moving character-by-character. */
 void linenoiseEditDeletePrevWord(struct linenoiseState *l) {
-    size_t old_pos = l->pos;
-    size_t diff;
+    if (l->pos > 0) {
+        linenoiseUndoSaveState(l);
+        size_t old_pos = l->pos;
+        size_t diff;
 
-    /* Skip spaces before the word (move backwards by UTF-8 chars). */
-    while (l->pos > 0 && l->buf[l->pos-1] == ' ')
-        l->pos -= utf8PrevCharLen(l->buf, l->pos);
-    /* Skip non-space characters (move backwards by UTF-8 chars). */
-    while (l->pos > 0 && l->buf[l->pos-1] != ' ')
-        l->pos -= utf8PrevCharLen(l->buf, l->pos);
-    diff = old_pos - l->pos;
-    memmove(l->buf+l->pos, l->buf+old_pos, l->len-old_pos+1);
-    l->len -= diff;
-    refreshLine(l);
+        /* Skip spaces before the word (move backwards by UTF-8 chars). */
+        while (l->pos > 0 && l->buf[l->pos-1] == ' ')
+            l->pos -= utf8PrevCharLen(l->buf, l->pos);
+        /* Skip non-space characters (move backwards by UTF-8 chars). */
+        while (l->pos > 0 && l->buf[l->pos-1] != ' ')
+            l->pos -= utf8PrevCharLen(l->buf, l->pos);
+        diff = old_pos - l->pos;
+        memmove(l->buf+l->pos, l->buf+old_pos, l->len-old_pos+1);
+        l->len -= diff;
+        refreshLine(l);
+    }
 }
 
 /* This function is part of the multiplexed API of Linenoise, that is used
@@ -1257,6 +1286,8 @@ void linenoiseEditDeletePrevWord(struct linenoiseState *l) {
  * STDIN_FILENO and STDOUT_FILENO.
  */
 int linenoiseEditStart(struct linenoiseState *l, int stdin_fd, int stdout_fd, char *buf, size_t buflen, const char *prompt) {
+    linenoiseUndoClear();
+
     /* Populate the linenoise state that we pass to functions implementing
      * specific editing functionalities. */
     l->in_completion = 0;
@@ -1375,6 +1406,7 @@ char *linenoiseEditFeed(struct linenoiseState *l) {
     case CTRL_T:    /* ctrl-t, swaps current character with previous. */
         /* Handle UTF-8: swap the two UTF-8 characters around cursor. */
         if (l->pos > 0 && l->pos < l->len) {
+            linenoiseUndoSaveState(l);
             char tmp[32];
             size_t prevlen = utf8PrevCharLen(l->buf, l->pos);
             size_t currlen = utf8NextCharLen(l->buf, l->pos, l->len);
@@ -1472,15 +1504,27 @@ char *linenoiseEditFeed(struct linenoiseState *l) {
             if (linenoiseEditInsert(l, utf8, utf8len)) return NULL;
         }
         break;
+    case CTRL_Z: /* Ctrl+z, undo */
+        linenoiseUndo(l);
+        break;
+    case CTRL_Y: /* Ctrl+y, redo */
+        linenoiseRedo(l);
+        break;
     case CTRL_U: /* Ctrl+u, delete the whole line. */
-        l->buf[0] = '\0';
-        l->pos = l->len = 0;
-        refreshLine(l);
+        if (l->len > 0) {
+            linenoiseUndoSaveState(l);
+            l->buf[0] = '\0';
+            l->pos = l->len = 0;
+            refreshLine(l);
+        }
         break;
     case CTRL_K: /* Ctrl+k, delete from current to end of line. */
-        l->buf[l->pos] = '\0';
-        l->len = l->pos;
-        refreshLine(l);
+        if (l->pos < l->len) {
+            linenoiseUndoSaveState(l);
+            l->buf[l->pos] = '\0';
+            l->len = l->pos;
+            refreshLine(l);
+        }
         break;
     case CTRL_A: /* Ctrl+a, go to the start of the line */
         linenoiseEditMoveHome(l);
@@ -1631,6 +1675,104 @@ char *linenoise(const char *prompt) {
 void linenoiseFree(void *ptr) {
     if (ptr == linenoiseEditMore) return; // Protect from API misuse.
     free(ptr);
+}
+
+/* ============================== Undo/Redo ================================= */
+
+static void linenoiseUndoFreeState(linenoiseUndoState *state) {
+    if (state->buf) {
+        free(state->buf);
+        state->buf = NULL;
+    }
+    state->len = 0;
+    state->pos = 0;
+}
+
+static void linenoiseUndoClearStack(linenoiseUndoState **stack, int *len) {
+    int i;
+    for (i = 0; i < *len; i++) {
+        linenoiseUndoFreeState(&(*stack)[i]);
+    }
+    *len = 0;
+}
+
+static void linenoiseUndoPush(linenoiseUndoState **stack, int *len, int *max, struct linenoiseState *l) {
+    if (*max == 0) return;
+
+    if (*stack == NULL) {
+        *stack = malloc(sizeof(linenoiseUndoState) * (*max));
+        if (*stack == NULL) return;
+        memset(*stack, 0, sizeof(linenoiseUndoState) * (*max));
+    }
+
+    if (*len == *max) {
+        linenoiseUndoFreeState(&(*stack)[0]);
+        memmove(*stack, *stack + 1, sizeof(linenoiseUndoState) * (*max - 1));
+        (*len)--;
+    }
+
+    linenoiseUndoState *state = &(*stack)[*len];
+    state->buf = malloc(l->len + 1);
+    if (state->buf == NULL) return;
+    memcpy(state->buf, l->buf, l->len + 1);
+    state->len = l->len;
+    state->pos = l->pos;
+    (*len)++;
+}
+
+static int linenoiseUndoPop(linenoiseUndoState **stack, int *len, struct linenoiseState *l) {
+    if (*len == 0 || *stack == NULL) return 0;
+
+    (*len)--;
+    linenoiseUndoState *state = &(*stack)[*len];
+
+    if (state->buf == NULL) return 0;
+
+    size_t copy_len = state->len;
+    if (copy_len >= l->buflen) copy_len = l->buflen - 1;
+
+    memcpy(l->buf, state->buf, copy_len);
+    l->buf[copy_len] = '\0';
+    l->len = copy_len;
+    l->pos = state->pos;
+    if (l->pos > l->len) l->pos = l->len;
+
+    linenoiseUndoFreeState(state);
+    return 1;
+}
+
+void linenoiseUndoClear(void) {
+    linenoiseUndoClearStack(&undo_stack, &undo_stack_len);
+    linenoiseUndoClearStack(&redo_stack, &redo_stack_len);
+}
+
+int linenoiseUndo(struct linenoiseState *l) {
+    if (undo_stack_len == 0) return 0;
+
+    linenoiseUndoPush(&redo_stack, &redo_stack_len, &redo_stack_max, l);
+
+    if (linenoiseUndoPop(&undo_stack, &undo_stack_len, l)) {
+        refreshLine(l);
+        return 1;
+    }
+    return 0;
+}
+
+int linenoiseRedo(struct linenoiseState *l) {
+    if (redo_stack_len == 0) return 0;
+
+    linenoiseUndoPush(&undo_stack, &undo_stack_len, &undo_stack_max, l);
+
+    if (linenoiseUndoPop(&redo_stack, &redo_stack_len, l)) {
+        refreshLine(l);
+        return 1;
+    }
+    return 0;
+}
+
+static void linenoiseUndoSaveState(struct linenoiseState *l) {
+    linenoiseUndoPush(&undo_stack, &undo_stack_len, &undo_stack_max, l);
+    linenoiseUndoClearStack(&redo_stack, &redo_stack_len);
 }
 
 /* ================================ History ================================= */

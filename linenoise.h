@@ -81,6 +81,11 @@ void linenoiseEditStop(struct linenoiseState *l);
 void linenoiseHide(struct linenoiseState *l);
 void linenoiseShow(struct linenoiseState *l);
 
+/* Undo/Redo API. */
+int linenoiseUndo(struct linenoiseState *l);
+int linenoiseRedo(struct linenoiseState *l);
+void linenoiseUndoClear(void);
+
 /* Blocking API. */
 char *linenoise(const char *prompt);
 void linenoiseFree(void *ptr);
