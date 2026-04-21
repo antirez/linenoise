@@ -120,7 +120,7 @@
 
 #define LINENOISE_DEFAULT_HISTORY_MAX_LEN 100
 #define LINENOISE_MAX_LINE 4096
-static char *unsupported_term[] = {"dumb","cons25","emacs",NULL};
+static const char *unsupported_term[] = {"dumb","cons25","emacs",NULL};
 static linenoiseCompletionCallback *completionCallback = NULL;
 static linenoiseHintsCallback *hintsCallback = NULL;
 static linenoiseFreeHintsCallback *freeHintsCallback = NULL;
@@ -820,10 +820,10 @@ void linenoiseAddCompletion(linenoiseCompletions *lc, const char *str) {
     size_t len = strlen(str);
     char *copy, **cvec;
 
-    copy = malloc(len+1);
+    copy = (char*)malloc(len+1);
     if (copy == NULL) return;
     memcpy(copy,str,len+1);
-    cvec = realloc(lc->cvec,sizeof(char*)*(lc->len+1));
+    cvec = (char**)realloc(lc->cvec,sizeof(char*)*(lc->len+1));
     if (cvec == NULL) {
         free(copy);
         return;
@@ -849,11 +849,11 @@ static void abInit(struct abuf *ab) {
 }
 
 static void abAppend(struct abuf *ab, const char *s, int len) {
-    char *new = realloc(ab->b,ab->len+len);
+    char *nw = (char*)realloc(ab->b,ab->len+len);
 
-    if (new == NULL) return;
-    memcpy(new+ab->len,s,len);
-    ab->b = new;
+    if (nw == NULL) return;
+    memcpy(nw+ab->len,s,len);
+    ab->b = nw;
     ab->len += len;
 }
 
@@ -1324,7 +1324,7 @@ int linenoiseEditStart(struct linenoiseState *l, int stdin_fd, int stdout_fd, ch
     return 0;
 }
 
-char *linenoiseEditMore = "If you see this, you are misusing the API: when linenoiseEditFeed() is called, if it returns linenoiseEditMore the user is yet editing the line. See the README file for more information.";
+const char *linenoiseEditMore = "If you see this, you are misusing the API: when linenoiseEditFeed() is called, if it returns linenoiseEditMore the user is yet editing the line. See the README file for more information.";
 
 /* This function is part of the multiplexed API of linenoise, see the top
  * comment on linenoiseEditStart() for more information. Call this function
@@ -1355,7 +1355,7 @@ char *linenoiseEditFeed(struct linenoiseState *l) {
 
     nread = read(l->ifd,&c,1);
     if (nread < 0) {
-        return (errno == EAGAIN || errno == EWOULDBLOCK) ? linenoiseEditMore : NULL;
+        return (errno == EAGAIN || errno == EWOULDBLOCK) ? (char*)linenoiseEditMore : NULL;
     } else if (nread == 0) {
         return NULL;
     }
@@ -1366,7 +1366,7 @@ char *linenoiseEditFeed(struct linenoiseState *l) {
     if ((l->in_completion || c == 9 /* TAB */) && completionCallback != NULL) {
         int retval = completeLine(l,c);
         /* Read next character when 0 */
-        if (retval == 0) return linenoiseEditMore;
+        if (retval == 0) return (char*)linenoiseEditMore;
         c = retval;
     }
 
@@ -1526,7 +1526,7 @@ char *linenoiseEditFeed(struct linenoiseState *l) {
         linenoiseEditDeletePrevWord(l);
         break;
     }
-    return linenoiseEditMore;
+    return (char*)linenoiseEditMore;
 }
 
 /* This is part of the multiplexed linenoise API. See linenoiseEditStart()
@@ -1602,7 +1602,7 @@ static char *linenoiseNoTTY(void) {
             if (maxlen == 0) maxlen = 16;
             maxlen *= 2;
             char *oldval = line;
-            line = realloc(line,maxlen);
+            line = (char*)realloc(line,maxlen);
             if (line == NULL) {
                 if (oldval) free(oldval);
                 return NULL;
@@ -1697,7 +1697,7 @@ int linenoiseHistoryAdd(const char *line) {
 
     /* Initialization on first call. */
     if (history == NULL) {
-        history = malloc(sizeof(char*)*history_max_len);
+        history = (char**)malloc(sizeof(char*)*history_max_len);
         if (history == NULL) return 0;
         memset(history,0,(sizeof(char*)*history_max_len));
     }
@@ -1724,14 +1724,14 @@ int linenoiseHistoryAdd(const char *line) {
  * just the latest 'len' elements if the new history length value is smaller
  * than the amount of items already inside the history. */
 int linenoiseHistorySetMaxLen(int len) {
-    char **new;
+    char **nw;
 
     if (len < 1) return 0;
     if (history) {
         int tocopy = history_len;
 
-        new = malloc(sizeof(char*)*len);
-        if (new == NULL) return 0;
+        nw = (char**)malloc(sizeof(char*)*len);
+        if (nw == NULL) return 0;
 
         /* If we can't copy everything, free the elements we'll not use. */
         if (len < tocopy) {
@@ -1740,10 +1740,10 @@ int linenoiseHistorySetMaxLen(int len) {
             for (j = 0; j < tocopy-len; j++) free(history[j]);
             tocopy = len;
         }
-        memset(new,0,sizeof(char*)*len);
-        memcpy(new,history+(history_len-tocopy), sizeof(char*)*tocopy);
+        memset(nw,0,sizeof(char*)*len);
+        memcpy(nw,history+(history_len-tocopy), sizeof(char*)*tocopy);
         free(history);
-        history = new;
+        history = nw;
     }
     history_max_len = len;
     if (history_len > history_max_len)
