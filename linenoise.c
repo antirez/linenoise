@@ -134,12 +134,15 @@ static int undo_stack_len = 0;
 static int redo_stack_len = 0;
 static int undo_stack_max = LINENOISE_UNDO_MAX_LEN;
 static int redo_stack_max = LINENOISE_UNDO_MAX_LEN;
+static int in_continuation = 0;
 
 static void linenoiseUndoFreeState(linenoiseUndoState *state);
 static void linenoiseUndoClearStack(linenoiseUndoState **stack, int *len);
 static void linenoiseUndoPush(linenoiseUndoState **stack, int *len, int *max, struct linenoiseState *l);
 static int linenoiseUndoPop(linenoiseUndoState **stack, int *len, struct linenoiseState *l);
 static void linenoiseUndoSaveState(struct linenoiseState *l);
+static void linenoiseUndoBreakContinuation(void);
+static void linenoiseUndoStartContinuation(struct linenoiseState *l);
 
 static char *unsupported_term[] = {"dumb","cons25","emacs",NULL};
 static linenoiseCompletionCallback *completionCallback = NULL;
@@ -1122,7 +1125,7 @@ void linenoiseShow(struct linenoiseState *l) {
  * On error writing to the terminal -1 is returned, otherwise 0. */
 int linenoiseEditInsert(struct linenoiseState *l, const char *c, size_t clen) {
     if (l->len + clen <= l->buflen) {
-        linenoiseUndoSaveState(l);
+        linenoiseUndoStartContinuation(l);
         if (l->len == l->pos) {
             /* Append at end of line. */
             memcpy(l->buf+l->pos, c, clen);
@@ -1158,6 +1161,7 @@ int linenoiseEditInsert(struct linenoiseState *l, const char *c, size_t clen) {
 /* Move cursor on the left. Moves by one UTF-8 character, not byte. */
 void linenoiseEditMoveLeft(struct linenoiseState *l) {
     if (l->pos > 0) {
+        linenoiseUndoBreakContinuation();
         l->pos -= utf8PrevCharLen(l->buf, l->pos);
         refreshLine(l);
     }
@@ -1166,6 +1170,7 @@ void linenoiseEditMoveLeft(struct linenoiseState *l) {
 /* Move cursor on the right. Moves by one UTF-8 character, not byte. */
 void linenoiseEditMoveRight(struct linenoiseState *l) {
     if (l->pos != l->len) {
+        linenoiseUndoBreakContinuation();
         l->pos += utf8NextCharLen(l->buf, l->pos, l->len);
         refreshLine(l);
     }
@@ -1174,6 +1179,7 @@ void linenoiseEditMoveRight(struct linenoiseState *l) {
 /* Move cursor to the start of the line. */
 void linenoiseEditMoveHome(struct linenoiseState *l) {
     if (l->pos != 0) {
+        linenoiseUndoBreakContinuation();
         l->pos = 0;
         refreshLine(l);
     }
@@ -1182,6 +1188,7 @@ void linenoiseEditMoveHome(struct linenoiseState *l) {
 /* Move cursor to the end of the line. */
 void linenoiseEditMoveEnd(struct linenoiseState *l) {
     if (l->pos != l->len) {
+        linenoiseUndoBreakContinuation();
         l->pos = l->len;
         refreshLine(l);
     }
@@ -1744,11 +1751,13 @@ static int linenoiseUndoPop(linenoiseUndoState **stack, int *len, struct linenoi
 void linenoiseUndoClear(void) {
     linenoiseUndoClearStack(&undo_stack, &undo_stack_len);
     linenoiseUndoClearStack(&redo_stack, &redo_stack_len);
+    in_continuation = 0;
 }
 
 int linenoiseUndo(struct linenoiseState *l) {
     if (undo_stack_len == 0) return 0;
 
+    linenoiseUndoBreakContinuation();
     linenoiseUndoPush(&redo_stack, &redo_stack_len, &redo_stack_max, l);
 
     if (linenoiseUndoPop(&undo_stack, &undo_stack_len, l)) {
@@ -1761,6 +1770,7 @@ int linenoiseUndo(struct linenoiseState *l) {
 int linenoiseRedo(struct linenoiseState *l) {
     if (redo_stack_len == 0) return 0;
 
+    linenoiseUndoBreakContinuation();
     linenoiseUndoPush(&undo_stack, &undo_stack_len, &undo_stack_max, l);
 
     if (linenoiseUndoPop(&redo_stack, &redo_stack_len, l)) {
@@ -1771,8 +1781,21 @@ int linenoiseRedo(struct linenoiseState *l) {
 }
 
 static void linenoiseUndoSaveState(struct linenoiseState *l) {
+    linenoiseUndoBreakContinuation();
     linenoiseUndoPush(&undo_stack, &undo_stack_len, &undo_stack_max, l);
     linenoiseUndoClearStack(&redo_stack, &redo_stack_len);
+}
+
+static void linenoiseUndoBreakContinuation(void) {
+    in_continuation = 0;
+}
+
+static void linenoiseUndoStartContinuation(struct linenoiseState *l) {
+    if (!in_continuation) {
+        linenoiseUndoPush(&undo_stack, &undo_stack_len, &undo_stack_max, l);
+        linenoiseUndoClearStack(&redo_stack, &redo_stack_len);
+        in_continuation = 1;
+    }
 }
 
 /* ================================ History ================================= */
