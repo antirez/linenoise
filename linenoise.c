@@ -1788,7 +1788,7 @@ static int showKillRingMenu(struct linenoiseState *l) {
         abAppend(&ab, ") ---\r\n", 6);
 
         for (int i = start_idx; i < end_idx; i++) {
-            int display_num = kill_ring_len - i;
+            int display_num = i - start_idx + 1;
             int is_selected = (i == selected_idx);
 
             if (is_selected) {
@@ -1828,8 +1828,8 @@ static int showKillRingMenu(struct linenoiseState *l) {
 
         if (c >= '1' && c <= '5') {
             int choice = c - '0';
-            int idx = kill_ring_len - choice;
-            if (idx >= 0 && idx < kill_ring_len) {
+            int idx = start_idx + (choice - 1);
+            if (idx >= start_idx && idx < end_idx) {
                 selected_idx = idx;
                 c = ENTER;
             } else {
