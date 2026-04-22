@@ -137,6 +137,21 @@ static int history_max_len = LINENOISE_DEFAULT_HISTORY_MAX_LEN;
 static int history_len = 0;
 static char **history = NULL;
 
+/* =========================== Kill Ring and Registers ========================= */
+
+#define KILL_RING_MAX_LEN 10
+#define REGISTER_COUNT 26
+
+static char **kill_ring = NULL;
+static int kill_ring_len = 0;
+static char *registers[REGISTER_COUNT] = {NULL};
+
+static void freeKillRing(void);
+static void freeRegisters(void);
+static void addToKillRing(const char *text);
+static int showKillRingMenu(struct linenoiseState *l);
+static void handleRegisterSequence(struct linenoiseState *l, int is_paste);
+
 /* =========================== UTF-8 support ================================ */
 
 /* Return the number of bytes that compose the UTF-8 character starting at
@@ -464,6 +479,7 @@ enum KEY_ACTION{
 	CTRL_T = 20,        /* Ctrl-t */
 	CTRL_U = 21,        /* Ctrl+u */
 	CTRL_W = 23,        /* Ctrl+w */
+	CTRL_Y = 25,        /* Ctrl-y */
 	ESC = 27,           /* Escape */
 	BACKSPACE =  127    /* Backspace */
 };
@@ -1453,6 +1469,11 @@ char *linenoiseEditFeed(struct linenoiseState *l) {
                 break;
             }
         }
+        /* ESC r/R sequences for register operations (Alt+R). */
+        else if (seq[0] == 'r' || seq[0] == 'R') {
+            int is_paste = isupper(seq[0]);
+            handleRegisterSequence(l, is_paste);
+        }
         break;
     default:
         /* Handle UTF-8 multi-byte sequences. When we receive the first byte
@@ -1477,10 +1498,13 @@ char *linenoiseEditFeed(struct linenoiseState *l) {
         l->pos = l->len = 0;
         refreshLine(l);
         break;
-    case CTRL_K: /* Ctrl+k, delete from current to end of line. */
-        l->buf[l->pos] = '\0';
-        l->len = l->pos;
-        refreshLine(l);
+    case CTRL_K: /* Ctrl+k, delete from current to end of line and store to kill ring. */
+        if (l->pos < l->len) {
+            addToKillRing(l->buf + l->pos);
+            l->buf[l->pos] = '\0';
+            l->len = l->pos;
+            refreshLine(l);
+        }
         break;
     case CTRL_A: /* Ctrl+a, go to the start of the line */
         linenoiseEditMoveHome(l);
@@ -1494,6 +1518,50 @@ char *linenoiseEditFeed(struct linenoiseState *l) {
         break;
     case CTRL_W: /* ctrl+w, delete previous word */
         linenoiseEditDeletePrevWord(l);
+        break;
+    case CTRL_Y: /* Ctrl+y, paste from kill ring. */
+        if (kill_ring_len == 0) {
+            linenoiseBeep();
+        } else if (kill_ring_len == 1) {
+            const char *text = kill_ring[0];
+            size_t text_len = strlen(text);
+            if (l->len + text_len <= l->buflen) {
+                if (l->len == l->pos) {
+                    memcpy(l->buf + l->pos, text, text_len);
+                    l->pos += text_len;
+                    l->len += text_len;
+                    l->buf[l->len] = '\0';
+                } else {
+                    memmove(l->buf + l->pos + text_len, l->buf + l->pos, l->len - l->pos);
+                    memcpy(l->buf + l->pos, text, text_len);
+                    l->len += text_len;
+                    l->pos += text_len;
+                    l->buf[l->len] = '\0';
+                }
+                refreshLine(l);
+            }
+        } else {
+            int selected = showKillRingMenu(l);
+            if (selected >= 0 && selected < kill_ring_len) {
+                const char *text = kill_ring[selected];
+                size_t text_len = strlen(text);
+                if (l->len + text_len <= l->buflen) {
+                    if (l->len == l->pos) {
+                        memcpy(l->buf + l->pos, text, text_len);
+                        l->pos += text_len;
+                        l->len += text_len;
+                        l->buf[l->len] = '\0';
+                    } else {
+                        memmove(l->buf + l->pos + text_len, l->buf + l->pos, l->len - l->pos);
+                        memcpy(l->buf + l->pos, text, text_len);
+                        l->len += text_len;
+                        l->pos += text_len;
+                        l->buf[l->len] = '\0';
+                    }
+                    refreshLine(l);
+                }
+            }
+        }
         break;
     }
     return linenoiseEditMore;
@@ -1647,10 +1715,240 @@ static void freeHistory(void) {
     }
 }
 
+/* =========================== Kill Ring and Registers Implementation ========================= */
+
+static void freeKillRing(void) {
+    if (kill_ring) {
+        int j;
+        for (j = 0; j < kill_ring_len; j++)
+            free(kill_ring[j]);
+        free(kill_ring);
+        kill_ring = NULL;
+        kill_ring_len = 0;
+    }
+}
+
+static void freeRegisters(void) {
+    int j;
+    for (j = 0; j < REGISTER_COUNT; j++) {
+        if (registers[j]) {
+            free(registers[j]);
+            registers[j] = NULL;
+        }
+    }
+}
+
+static void addToKillRing(const char *text) {
+    if (text == NULL || text[0] == '\0') return;
+
+    if (kill_ring == NULL) {
+        kill_ring = malloc(sizeof(char*) * KILL_RING_MAX_LEN);
+        if (kill_ring == NULL) return;
+        memset(kill_ring, 0, sizeof(char*) * KILL_RING_MAX_LEN);
+    }
+
+    char *textcopy = strdup(text);
+    if (!textcopy) return;
+
+    if (kill_ring_len == KILL_RING_MAX_LEN) {
+        free(kill_ring[0]);
+        memmove(kill_ring, kill_ring + 1, sizeof(char*) * (KILL_RING_MAX_LEN - 1));
+        kill_ring_len--;
+    }
+    kill_ring[kill_ring_len] = textcopy;
+    kill_ring_len++;
+}
+
+static int showKillRingMenu(struct linenoiseState *l) {
+    if (kill_ring_len == 0) {
+        linenoiseBeep();
+        return -1;
+    }
+
+    int page_size = 5;
+    int total_pages = (kill_ring_len + page_size - 1) / page_size;
+    int current_page = 0;
+    int selected_idx = kill_ring_len - 1;
+
+    while (1) {
+        int start_idx = current_page * page_size;
+        int end_idx = start_idx + page_size;
+        if (end_idx > kill_ring_len) end_idx = kill_ring_len;
+
+        char seq[64];
+        struct abuf ab;
+        abInit(&ab);
+
+        snprintf(seq, sizeof(seq), "\r\x1b[0K");
+        abAppend(&ab, seq, strlen(seq));
+
+        abAppend(&ab, "--- Kill Ring (Page ", 22);
+        snprintf(seq, sizeof(seq), "%d/%d", current_page + 1, total_pages);
+        abAppend(&ab, seq, strlen(seq));
+        abAppend(&ab, ") ---\r\n", 6);
+
+        for (int i = start_idx; i < end_idx; i++) {
+            int display_num = kill_ring_len - i;
+            int is_selected = (i == selected_idx);
+
+            if (is_selected) {
+                abAppend(&ab, "\x1b[7m", 4);
+            }
+
+            snprintf(seq, sizeof(seq), "%d: ", display_num);
+            abAppend(&ab, seq, strlen(seq));
+
+            const char *item = kill_ring[i];
+            size_t item_len = strlen(item);
+            size_t max_display = l->cols - 10;
+            if (item_len > max_display) {
+                abAppend(&ab, item, max_display - 3);
+                abAppend(&ab, "...", 3);
+            } else {
+                abAppend(&ab, item, item_len);
+            }
+
+            if (is_selected) {
+                abAppend(&ab, "\x1b[0m", 4);
+            }
+            abAppend(&ab, "\r\n", 2);
+        }
+
+        abAppend(&ab, "Use Up/Down to select, Enter to confirm, Esc to cancel, 1-5 to quick select", 78);
+
+        if (write(l->ofd, ab.b, ab.len) == -1) {}
+        abFree(&ab);
+
+        char c;
+        int nread = read(l->ifd, &c, 1);
+        if (nread <= 0) {
+            refreshLine(l);
+            return -1;
+        }
+
+        if (c >= '1' && c <= '5') {
+            int choice = c - '0';
+            int idx = kill_ring_len - choice;
+            if (idx >= 0 && idx < kill_ring_len) {
+                selected_idx = idx;
+                c = ENTER;
+            } else {
+                linenoiseBeep();
+                continue;
+            }
+        }
+
+        switch (c) {
+        case ESC:
+            if (read(l->ifd, &c, 1) == -1) {
+                refreshLine(l);
+                return -1;
+            }
+            if (c == '[') {
+                if (read(l->ifd, &c, 1) == -1) {
+                    refreshLine(l);
+                    return -1;
+                }
+                if (c == 'A') {
+                    if (selected_idx > 0) {
+                        selected_idx--;
+                        if (selected_idx < start_idx) {
+                            current_page = selected_idx / page_size;
+                        }
+                    } else {
+                        linenoiseBeep();
+                    }
+                } else if (c == 'B') {
+                    if (selected_idx < kill_ring_len - 1) {
+                        selected_idx++;
+                        if (selected_idx >= end_idx) {
+                            current_page = selected_idx / page_size;
+                        }
+                    } else {
+                        linenoiseBeep();
+                    }
+                }
+            } else {
+                refreshLine(l);
+                return -1;
+            }
+            break;
+        case ENTER:
+            refreshLine(l);
+            return selected_idx;
+        case CTRL_C:
+            refreshLine(l);
+            return -1;
+        default:
+            linenoiseBeep();
+            break;
+        }
+    }
+}
+
+static void handleRegisterSequence(struct linenoiseState *l, int is_paste) {
+    char reg_char;
+    int nread = read(l->ifd, &reg_char, 1);
+    if (nread <= 0) return;
+
+    if (!isalpha(reg_char)) {
+        linenoiseBeep();
+        return;
+    }
+
+    int reg_idx = tolower(reg_char) - 'a';
+    if (reg_idx < 0 || reg_idx >= REGISTER_COUNT) {
+        linenoiseBeep();
+        return;
+    }
+
+    if (is_paste) {
+        if (registers[reg_idx] == NULL) {
+            linenoiseBeep();
+            return;
+        }
+        const char *text = registers[reg_idx];
+        size_t text_len = strlen(text);
+        if (l->len + text_len <= l->buflen) {
+            if (l->len == l->pos) {
+                memcpy(l->buf + l->pos, text, text_len);
+                l->pos += text_len;
+                l->len += text_len;
+                l->buf[l->len] = '\0';
+            } else {
+                memmove(l->buf + l->pos + text_len, l->buf + l->pos, l->len - l->pos);
+                memcpy(l->buf + l->pos, text, text_len);
+                l->len += text_len;
+                l->pos += text_len;
+                l->buf[l->len] = '\0';
+            }
+            refreshLine(l);
+        }
+    } else {
+        if (l->pos >= l->len) {
+            linenoiseBeep();
+            return;
+        }
+        char *deleted = strdup(l->buf + l->pos);
+        if (deleted == NULL) return;
+
+        if (registers[reg_idx]) {
+            free(registers[reg_idx]);
+        }
+        registers[reg_idx] = deleted;
+
+        l->buf[l->pos] = '\0';
+        l->len = l->pos;
+        refreshLine(l);
+    }
+}
+
 /* At exit we'll try to fix the terminal to the initial conditions. */
 static void linenoiseAtExit(void) {
     disableRawMode(STDIN_FILENO);
     freeHistory();
+    freeKillRing();
+    freeRegisters();
 }
 
 /* This is the API call to add a new entry in the linenoise history.

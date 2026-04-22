@@ -657,6 +657,9 @@ static void send_keys(const char *keys) {
 #define KEY_CTRL_W  "\x17"
 #define KEY_CTRL_T  "\x14"
 #define KEY_CTRL_C  "\x03"
+#define KEY_CTRL_Y  "\x19"
+#define KEY_ESC_R   "\x1br"
+#define KEY_ESC_R_CAP "\x1bR"
 
 /* ========================= Test Assertions ========================= */
 
@@ -1254,6 +1257,71 @@ static void test_tab_no_completions(void) {
     test_end();
 }
 
+static void test_kill_ring_single(void) {
+    if (test_start("Kill Ring Single Item", "./linenoise-example") == -1) return;
+
+    int prompt_len = strlen("hello> ");
+
+    send_keys("hello world");
+    assert_screen_row(0, "hello> hello world");
+
+    send_keys(KEY_CTRL_A KEY_CTRL_E);
+    send_keys(KEY_LEFT KEY_LEFT KEY_LEFT KEY_LEFT KEY_LEFT);
+    send_keys(KEY_CTRL_K);
+    assert_screen_row(0, "hello> hello");
+    assert_cursor(0, prompt_len + 5);
+
+    send_keys(KEY_CTRL_E);
+    send_keys(KEY_CTRL_Y);
+    assert_screen_row(0, "hello> hello world");
+
+    test_end();
+}
+
+static void test_register_cut_paste(void) {
+    if (test_start("Register Cut and Paste", "./linenoise-example") == -1) return;
+
+    send_keys("test this sentence");
+    assert_screen_row(0, "hello> test this sentence");
+
+    send_keys(KEY_CTRL_A);
+    send_keys(KEY_RIGHT KEY_RIGHT KEY_RIGHT KEY_RIGHT);
+    send_keys(KEY_ESC_R "a");
+    assert_screen_row(0, "hello> test");
+
+    send_keys(KEY_CTRL_E);
+    send_keys(KEY_ESC_R_CAP "a");
+    assert_screen_row(0, "hello> test this sentence");
+
+    test_end();
+}
+
+static void test_register_multiple(void) {
+    if (test_start("Multiple Registers", "./linenoise-example") == -1) return;
+
+    send_keys("first second third");
+    assert_screen_row(0, "hello> first second third");
+
+    send_keys(KEY_CTRL_A);
+    send_keys(KEY_RIGHT KEY_RIGHT KEY_RIGHT KEY_RIGHT KEY_RIGHT);
+    send_keys(KEY_ESC_R "a");
+    assert_screen_row(0, "hello> first");
+
+    send_keys(" XXX");
+    send_keys(KEY_ESC_R "b");
+    assert_screen_row(0, "hello> first");
+
+    send_keys(KEY_CTRL_E);
+    send_keys(KEY_ESC_R_CAP "a");
+    assert_row_contains(0, "second");
+
+    send_keys(KEY_CTRL_E);
+    send_keys(KEY_ESC_R_CAP "b");
+    assert_row_contains(0, "XXX");
+
+    test_end();
+}
+
 /* ========================= Main ========================= */
 
 int main(int argc, char **argv) {
@@ -1283,6 +1351,9 @@ int main(int argc, char **argv) {
     test_ctrl_w_delete_word();
     test_ctrl_u_delete_line();
     test_tab_no_completions();
+    test_kill_ring_single();
+    test_register_cut_paste();
+    test_register_multiple();
 
     /* Horizontal scrolling tests (single-line mode). */
     test_horizontal_scroll();
