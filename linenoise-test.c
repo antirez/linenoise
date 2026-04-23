@@ -1268,8 +1268,8 @@ static void test_kill_ring_single(void) {
     send_keys(KEY_CTRL_A KEY_CTRL_E);
     send_keys(KEY_LEFT KEY_LEFT KEY_LEFT KEY_LEFT KEY_LEFT);
     send_keys(KEY_CTRL_K);
-    assert_screen_row(0, "hello> hello");
-    assert_cursor(0, prompt_len + 5);
+    assert_screen_row(0, "hello> hello ");
+    assert_cursor(0, prompt_len + 6);
 
     send_keys(KEY_CTRL_E);
     send_keys(KEY_CTRL_Y);
@@ -1322,6 +1322,161 @@ static void test_register_multiple(void) {
     test_end();
 }
 
+static void test_kill_ring_max_items(void) {
+    if (test_start("Kill Ring Max 10 Items", "./linenoise-example") == -1) return;
+
+    int prompt_len = strlen("hello> ");
+
+    send_keys("item1");
+    send_keys(KEY_CTRL_A KEY_CTRL_K);
+
+    send_keys("item2");
+    send_keys(KEY_CTRL_A KEY_CTRL_K);
+
+    send_keys("item3");
+    send_keys(KEY_CTRL_A KEY_CTRL_K);
+
+    send_keys("item4");
+    send_keys(KEY_CTRL_A KEY_CTRL_K);
+
+    send_keys("item5");
+    send_keys(KEY_CTRL_A KEY_CTRL_K);
+
+    send_keys("item6");
+    send_keys(KEY_CTRL_A KEY_CTRL_K);
+
+    send_keys("item7");
+    send_keys(KEY_CTRL_A KEY_CTRL_K);
+
+    send_keys("item8");
+    send_keys(KEY_CTRL_A KEY_CTRL_K);
+
+    send_keys("item9");
+    send_keys(KEY_CTRL_A KEY_CTRL_K);
+
+    send_keys("item10");
+    send_keys(KEY_CTRL_A KEY_CTRL_K);
+
+    send_keys("item11");
+    send_keys(KEY_CTRL_A KEY_CTRL_K);
+
+    send_keys("test");
+    send_keys(KEY_CTRL_E);
+    send_keys(KEY_CTRL_Y);
+
+    send_keys("1");
+    assert_row_contains(0, "item11");
+
+    send_keys(KEY_CTRL_A KEY_CTRL_K);
+
+    send_keys("test");
+    send_keys(KEY_CTRL_E);
+    send_keys(KEY_CTRL_Y);
+
+    send_keys("5");
+    assert_row_contains(0, "item7");
+
+    send_keys(KEY_CTRL_A KEY_CTRL_K);
+
+    send_keys("test");
+    send_keys(KEY_CTRL_E);
+    send_keys(KEY_CTRL_Y);
+
+    send_keys(KEY_DOWN KEY_DOWN KEY_DOWN KEY_DOWN KEY_DOWN);
+    send_keys(KEY_ENTER);
+    assert_row_contains(0, "item6");
+
+    test_end();
+}
+
+static void test_kill_ring_menu_paging(void) {
+    if (test_start("Kill Ring Menu Paging", "./linenoise-example") == -1) return;
+
+    int prompt_len = strlen("hello> ");
+
+    send_keys("first");
+    send_keys(KEY_CTRL_A KEY_CTRL_K);
+
+    send_keys("second");
+    send_keys(KEY_CTRL_A KEY_CTRL_K);
+
+    send_keys("third");
+    send_keys(KEY_CTRL_A KEY_CTRL_K);
+
+    send_keys("fourth");
+    send_keys(KEY_CTRL_A KEY_CTRL_K);
+
+    send_keys("fifth");
+    send_keys(KEY_CTRL_A KEY_CTRL_K);
+
+    send_keys("sixth");
+    send_keys(KEY_CTRL_A KEY_CTRL_K);
+
+    send_keys("test");
+    send_keys(KEY_CTRL_E);
+
+    send_keys(KEY_CTRL_Y);
+
+    send_keys("1");
+    assert_row_contains(0, "sixth");
+
+    send_keys(KEY_CTRL_A KEY_CTRL_K);
+
+    send_keys("test");
+    send_keys(KEY_CTRL_E);
+    send_keys(KEY_CTRL_Y);
+
+    send_keys("5");
+    assert_row_contains(0, "second");
+
+    send_keys(KEY_CTRL_A KEY_CTRL_K);
+
+    send_keys("test");
+    send_keys(KEY_CTRL_E);
+    send_keys(KEY_CTRL_Y);
+
+    send_keys(KEY_DOWN KEY_DOWN KEY_DOWN KEY_DOWN KEY_DOWN);
+    send_keys(KEY_ENTER);
+    assert_row_contains(0, "first");
+
+    test_end();
+}
+
+static void test_kill_ring_arrow_selection(void) {
+    if (test_start("Kill Ring Arrow Selection", "./linenoise-example") == -1) return;
+
+    int prompt_len = strlen("hello> ");
+
+    send_keys("alpha");
+    send_keys(KEY_CTRL_A KEY_CTRL_K);
+
+    send_keys("beta");
+    send_keys(KEY_CTRL_A KEY_CTRL_K);
+
+    send_keys("gamma");
+    send_keys(KEY_CTRL_A KEY_CTRL_K);
+
+    send_keys("test");
+    send_keys(KEY_CTRL_E);
+    send_keys(KEY_CTRL_Y);
+
+    send_keys(KEY_DOWN);
+    send_keys(KEY_ENTER);
+    assert_row_contains(0, "beta");
+
+    send_keys(KEY_CTRL_A KEY_CTRL_K);
+
+    send_keys("test");
+    send_keys(KEY_CTRL_E);
+    send_keys(KEY_CTRL_Y);
+
+    send_keys(KEY_DOWN KEY_DOWN);
+    send_keys(KEY_ENTER);
+    assert_row_contains(0, "alpha");
+
+    test_end();
+}
+
 /* ========================= Main ========================= */
 
 int main(int argc, char **argv) {
@@ -1354,6 +1509,9 @@ int main(int argc, char **argv) {
     test_kill_ring_single();
     test_register_cut_paste();
     test_register_multiple();
+    test_kill_ring_max_items();
+    test_kill_ring_menu_paging();
+    test_kill_ring_arrow_selection();
 
     /* Horizontal scrolling tests (single-line mode). */
     test_horizontal_scroll();

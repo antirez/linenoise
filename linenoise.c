@@ -150,7 +150,7 @@ static void freeKillRing(void);
 static void freeRegisters(void);
 static void addToKillRing(const char *text);
 static int showKillRingMenu(struct linenoiseState *l);
-static void handleRegisterSequence(struct linenoiseState *l, int is_paste);
+static void handleRegisterSequence(struct linenoiseState *l, int is_paste, char reg_char);
 
 /* =========================== UTF-8 support ================================ */
 
@@ -1472,7 +1472,7 @@ char *linenoiseEditFeed(struct linenoiseState *l) {
         /* ESC r/R sequences for register operations (Alt+R). */
         else if (seq[0] == 'r' || seq[0] == 'R') {
             int is_paste = isupper(seq[0]);
-            handleRegisterSequence(l, is_paste);
+            handleRegisterSequence(l, is_paste, seq[1]);
         }
         break;
     default:
@@ -1767,13 +1767,14 @@ static int showKillRingMenu(struct linenoiseState *l) {
 
     int page_size = 5;
     int total_pages = (kill_ring_len + page_size - 1) / page_size;
-    int current_page = 0;
     int selected_idx = kill_ring_len - 1;
+    int current_page = 0;
 
     while (1) {
-        int start_idx = current_page * page_size;
-        int end_idx = start_idx + page_size;
-        if (end_idx > kill_ring_len) end_idx = kill_ring_len;
+        int end_idx = kill_ring_len - current_page * page_size;
+        int start_idx = end_idx - page_size;
+        if (start_idx < 0) start_idx = 0;
+        int items_on_page = end_idx - start_idx;
 
         char seq[64];
         struct abuf ab;
@@ -1787,7 +1788,7 @@ static int showKillRingMenu(struct linenoiseState *l) {
         abAppend(&ab, seq, strlen(seq));
         abAppend(&ab, ") ---\r\n", 6);
 
-        for (int i = start_idx; i < end_idx; i++) {
+        for (int i = end_idx - 1; i >= start_idx; i--) {
             int display_num = kill_ring_len - i;
             int is_selected = (i == selected_idx);
 
@@ -1828,10 +1829,15 @@ static int showKillRingMenu(struct linenoiseState *l) {
 
         if (c >= '1' && c <= '5') {
             int choice = c - '0';
-            int idx = kill_ring_len - choice;
-            if (idx >= 0 && idx < kill_ring_len) {
-                selected_idx = idx;
-                c = ENTER;
+            if (choice <= items_on_page) {
+                int idx = end_idx - choice;
+                if (idx >= start_idx && idx < end_idx) {
+                    selected_idx = idx;
+                    c = ENTER;
+                } else {
+                    linenoiseBeep();
+                    continue;
+                }
             } else {
                 linenoiseBeep();
                 continue;
@@ -1850,19 +1856,29 @@ static int showKillRingMenu(struct linenoiseState *l) {
                     return -1;
                 }
                 if (c == 'A') {
-                    if (selected_idx > 0) {
-                        selected_idx--;
-                        if (selected_idx < start_idx) {
-                            current_page = selected_idx / page_size;
+                    if (selected_idx < kill_ring_len - 1) {
+                        selected_idx++;
+                        if (selected_idx >= end_idx) {
+                            if (current_page > 0) {
+                                current_page--;
+                            } else {
+                                selected_idx--;
+                                linenoiseBeep();
+                            }
                         }
                     } else {
                         linenoiseBeep();
                     }
                 } else if (c == 'B') {
-                    if (selected_idx < kill_ring_len - 1) {
-                        selected_idx++;
-                        if (selected_idx >= end_idx) {
-                            current_page = selected_idx / page_size;
+                    if (selected_idx > 0) {
+                        selected_idx--;
+                        if (selected_idx < start_idx) {
+                            if (current_page < total_pages - 1) {
+                                current_page++;
+                            } else {
+                                selected_idx++;
+                                linenoiseBeep();
+                            }
                         }
                     } else {
                         linenoiseBeep();
@@ -1886,11 +1902,7 @@ static int showKillRingMenu(struct linenoiseState *l) {
     }
 }
 
-static void handleRegisterSequence(struct linenoiseState *l, int is_paste) {
-    char reg_char;
-    int nread = read(l->ifd, &reg_char, 1);
-    if (nread <= 0) return;
-
+static void handleRegisterSequence(struct linenoiseState *l, int is_paste, char reg_char) {
     if (!isalpha(reg_char)) {
         linenoiseBeep();
         return;
