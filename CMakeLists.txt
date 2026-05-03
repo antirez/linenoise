@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 3.5)
+cmake_minimum_required (VERSION 3.10)
 project (LINENOISE DESCRIPTION "A shell library")
 
 # Configuration specific to being the main project
