@@ -45,6 +45,7 @@ extern "C" {
 
 #include <stddef.h> /* For size_t. */
 
+extern int linenoiseWasInterrupted; /* nonzero if last keystroke was ctrl-c */
 extern char *linenoiseEditMore;
 
 #define LINENOISE_MAX_FOLDS 16

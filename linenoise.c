@@ -506,6 +506,7 @@ enum KEY_ACTION{
 };
 
 static void linenoiseAtExit(void);
+int linenoiseWasInterrupted = 0;
 int linenoiseHistoryAdd(const char *line);
 #define REFRESH_CLEAN (1<<0)    // Clean the old prompt from the screen
 #define REFRESH_WRITE (1<<1)    // Rewrite the prompt on the screen.
@@ -1914,6 +1915,7 @@ char *linenoiseEditFeed(struct linenoiseState *l) {
         return strdup(l->buf);
     case CTRL_C:     /* ctrl-c */
         errno = EAGAIN;
+        linenoiseWasInterrupted = 1;
         return NULL;
     case BACKSPACE:   /* backspace */
     case 8:     /* ctrl-h */
