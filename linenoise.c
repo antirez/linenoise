@@ -2345,8 +2345,9 @@ int linenoiseHistorySave(const char *filename) {
         }
         fputc('\n', fp);
     }
-    fclose(fp);
-    return 0;
+    int err = ferror(fp);
+    if (fclose(fp) == EOF) err = 1;
+    return err ? -1 : 0;
 }
 
 /* Load the history from the specified file. If the file does not exist
